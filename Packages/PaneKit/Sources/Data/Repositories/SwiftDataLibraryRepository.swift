@@ -78,8 +78,8 @@ public actor SwiftDataLibraryRepository: LibraryRepository {
 }
 
 extension SwiftDataLibraryRepository {
-    func containsFile(atPath path: String) throws -> Bool {
-        try modelContext.fetchCount(FetchDescriptor<MediaItemRecord>(predicate: #Predicate { $0.importedPath == path })) > 0
+    func file(atPath path: String) throws -> MediaItem? {
+        try modelContext.fetch(FetchDescriptor<MediaItemRecord>(predicate: #Predicate { $0.importedPath == path })).first?.mediaItem
     }
 
     func insertFile(_ item: MediaItem, importedPath: String) throws {

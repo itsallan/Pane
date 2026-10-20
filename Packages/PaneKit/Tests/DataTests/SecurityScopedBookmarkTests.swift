@@ -64,10 +64,10 @@ struct SecurityScopedBookmarkTests {
         let library = SwiftDataLibraryRepository(modelContainer: try .library(inMemory: true))
         let importer = BookmarkImporter(library: library)
 
-        _ = try await importer.importMedia(at: [file])
+        let first = try await importer.importMedia(at: [file])
         let second = try await importer.importMedia(at: [file])
 
-        #expect(second.isEmpty)
+        #expect(second.map(\.id) == first.map(\.id))
         #expect(try await library.items().count == 1)
     }
 

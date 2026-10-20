@@ -35,9 +35,9 @@ let package = Package(
         ),
         .target(name: "Data", dependencies: ["Domain"], swiftSettings: swiftSettings),
         .target(name: "DesignSystem", swiftSettings: swiftSettings),
-        // PlaybackTesting backs the #Previews only; nothing outside DEBUG references it, so release builds strip it.
+        // PlaybackTesting backs the features' #Previews only; nothing outside DEBUG references it, so release builds strip it.
         .target(name: "PlayerFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
-        .target(name: "LibraryFeature", dependencies: ["Domain", "DesignSystem"], swiftSettings: swiftSettings),
+        .target(name: "LibraryFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "SettingsFeature", dependencies: ["Domain", "DesignSystem"], swiftSettings: swiftSettings),
         .target(name: "PlaybackTesting", dependencies: ["Domain"], swiftSettings: swiftSettings),
 

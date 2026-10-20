@@ -20,8 +20,8 @@ public struct BookmarkImporter: MediaImporter {
             }
             if url.hasDirectoryPath || (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true {
                 imported += try await importFolder(at: url)
-            } else if PlayableContent.isPlayable(url), let item = try await importFile(at: url, folder: nil) {
-                imported.append(item)
+            } else if PlayableContent.isPlayable(url) {
+                imported.append(try await importFile(at: url, folder: nil))
             }
         }
         return imported
@@ -34,16 +34,16 @@ public struct BookmarkImporter: MediaImporter {
 
         var imported: [MediaItem] = []
         for file in Self.playableFiles(in: url) {
-            if let item = try await importFile(at: file, folder: folder.id) {
-                imported.append(item)
-            }
+            imported.append(try await importFile(at: file, folder: folder.id))
         }
         return imported
     }
 
-    private func importFile(at url: URL, folder: LibraryFolder.ID?) async throws -> MediaItem? {
+    private func importFile(at url: URL, folder: LibraryFolder.ID?) async throws -> MediaItem {
         let path = url.standardizedFileURL.path(percentEncoded: false)
-        guard try await !library.containsFile(atPath: path) else { return nil }
+        if let existing = try await library.file(atPath: path) {
+            return existing
+        }
         let item = MediaItem(
             title: url.deletingPathExtension().lastPathComponent,
             source: .file(bookmark: try SecurityScopedBookmark.make(for: url)),
