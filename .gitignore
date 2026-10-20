@@ -19,6 +19,7 @@ playground.xcworkspace
 # Swift Package Manager
 .build/
 .swiftpm/
+.claude
 Packages/*/.build/
 Packages/*/.swiftpm/
 
