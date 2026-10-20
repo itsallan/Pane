@@ -9,7 +9,7 @@ struct SampleStreamsButton: ToolbarContent {
 
     private static let samples: [(id: String, title: String, url: String)] = [
         ("8E7B2C1A-0000-4000-8000-000000000001", "Big Buck Bunny", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8"),
-        ("8E7B2C1A-0000-4000-8000-000000000002", "Sintel", "https://bitdash-a.akamaihd.net/content/sintel/hls/playlist.m3u8"),
+        ("8E7B2C1A-0000-4000-8000-000000000002", "Sintel", "https://download.blender.org/durian/movies/Sintel.2010.1080p.mkv"),
         ("8E7B2C1A-0000-4000-8000-000000000003", "Tears of Steel", "https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8"),
         ("8E7B2C1A-0000-4000-8000-000000000004", "Matroska Subtitles", "https://raw.githubusercontent.com/ietf-wg-cellar/matroska-test-files/master/test_files/test5.mkv"),
     ]
