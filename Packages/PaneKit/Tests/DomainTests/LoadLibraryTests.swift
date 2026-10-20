@@ -25,4 +25,14 @@ struct LoadLibraryTests {
         #expect(entries.map(\.isWatched) == [true, false, false])
         #expect(entries.map(\.lastPlayed) == [nil, nil, base])
     }
+
+    @Test func learnsStreamDurationFromProgress() async throws {
+        let stream = MediaItem(title: "Stream", source: .stream(URL(filePath: "/live.m3u8")))
+        let progress = InMemoryProgressRepository(progress: [stream.id: PlaybackProgress(position: .seconds(60), duration: .seconds(600))])
+
+        let entries = try await LoadLibrary(library: InMemoryLibraryRepository(items: [stream]), progress: progress)()
+
+        #expect(entries.first?.item.duration == .seconds(600))
+        #expect(entries.first?.resumePosition == .seconds(60))
+    }
 }

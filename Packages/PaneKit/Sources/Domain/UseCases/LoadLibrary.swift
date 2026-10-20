@@ -18,7 +18,12 @@ public struct LoadLibrary: Sendable {
         return allItems
             .sorted { ($0.dateAdded, $1.title) > ($1.dateAdded, $0.title) }
             .map { item in
+                var item = item
                 var resume = savedProgress[item.id]
+                // Streams are added without a duration; playback learns it and saves it with the progress.
+                if item.duration == nil {
+                    item.duration = resume?.duration
+                }
                 if resume?.duration == nil {
                     resume?.duration = item.duration
                 }
