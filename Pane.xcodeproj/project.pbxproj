@@ -6,6 +6,16 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		9DAAD1C13087F0000051615D /* Domain in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D13087F0000051615D /* Domain */; };
+		9DAAD1C23087F0000051615D /* Playback in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D23087F0000051615D /* Playback */; };
+		9DAAD1C33087F0000051615D /* Data in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D33087F0000051615D /* Data */; };
+		9DAAD1C43087F0000051615D /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D43087F0000051615D /* DesignSystem */; };
+		9DAAD1C53087F0000051615D /* PlayerFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D53087F0000051615D /* PlayerFeature */; };
+		9DAAD1C63087F0000051615D /* LibraryFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D63087F0000051615D /* LibraryFeature */; };
+		9DAAD1C73087F0000051615D /* SettingsFeature in Frameworks */ = {isa = PBXBuildFile; productRef = 9DAAD1D73087F0000051615D /* SettingsFeature */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		9DAAD1B13087EC410051615D /* Pane.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pane.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -23,6 +33,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9DAAD1C13087F0000051615D /* Domain in Frameworks */,
+				9DAAD1C23087F0000051615D /* Playback in Frameworks */,
+				9DAAD1C33087F0000051615D /* Data in Frameworks */,
+				9DAAD1C43087F0000051615D /* DesignSystem in Frameworks */,
+				9DAAD1C53087F0000051615D /* PlayerFeature in Frameworks */,
+				9DAAD1C63087F0000051615D /* LibraryFeature in Frameworks */,
+				9DAAD1C73087F0000051615D /* SettingsFeature in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +82,13 @@
 			);
 			name = Pane;
 			packageProductDependencies = (
+				9DAAD1D13087F0000051615D /* Domain */,
+				9DAAD1D23087F0000051615D /* Playback */,
+				9DAAD1D33087F0000051615D /* Data */,
+				9DAAD1D43087F0000051615D /* DesignSystem */,
+				9DAAD1D53087F0000051615D /* PlayerFeature */,
+				9DAAD1D63087F0000051615D /* LibraryFeature */,
+				9DAAD1D73087F0000051615D /* SettingsFeature */,
 			);
 			productName = Pane;
 			productReference = 9DAAD1B13087EC410051615D /* Pane.app */;
@@ -94,6 +118,9 @@
 			);
 			mainGroup = 9DAAD1A83087EC410051615D;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				9DAAD1C03087F0000051615D /* XCLocalSwiftPackageReference "Packages/PaneKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 9DAAD1B23087EC410051615D /* Products */;
 			projectDirPath = "";
@@ -349,6 +376,44 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		9DAAD1C03087F0000051615D /* XCLocalSwiftPackageReference "Packages/PaneKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/PaneKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		9DAAD1D13087F0000051615D /* Domain */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Domain;
+		};
+		9DAAD1D23087F0000051615D /* Playback */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Playback;
+		};
+		9DAAD1D33087F0000051615D /* Data */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Data;
+		};
+		9DAAD1D43087F0000051615D /* DesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = DesignSystem;
+		};
+		9DAAD1D53087F0000051615D /* PlayerFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PlayerFeature;
+		};
+		9DAAD1D63087F0000051615D /* LibraryFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = LibraryFeature;
+		};
+		9DAAD1D73087F0000051615D /* SettingsFeature */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SettingsFeature;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 9DAAD1A93087EC410051615D /* Project object */;
 }
