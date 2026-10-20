@@ -1,12 +1,14 @@
+public enum SaveProgressTrigger: Sendable, Hashable {
+    case tick
+    case pause
+    case seekEnded
+    case close
+    case background
+}
+
 /// An actor rather than a struct because the throttle has to remember when it last wrote.
 public actor SaveProgress<C: Clock> where C.Duration == Duration {
-    public enum Trigger: Sendable, Hashable {
-        case tick
-        case pause
-        case seekEnded
-        case close
-        case background
-    }
+    public typealias Trigger = SaveProgressTrigger
 
     private let item: MediaItem.ID
     private let repository: any ProgressRepository

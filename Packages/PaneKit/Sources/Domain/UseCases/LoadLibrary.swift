@@ -12,7 +12,8 @@ public struct LoadLibrary: Sendable {
         async let items = library.items()
         async let saved = progress.allProgress()
         async let watched = progress.watchedItems()
-        let (allItems, savedProgress, watchedIDs) = try await (items, saved, watched)
+        async let played = progress.lastPlayedDates()
+        let (allItems, savedProgress, watchedIDs, lastPlayed) = try await (items, saved, watched, played)
 
         return allItems
             .sorted { ($0.dateAdded, $1.title) > ($1.dateAdded, $0.title) }
@@ -21,7 +22,12 @@ public struct LoadLibrary: Sendable {
                 if resume?.duration == nil {
                     resume?.duration = item.duration
                 }
-                return LibraryEntry(item: item, resumePosition: resume?.resumePosition, isWatched: watchedIDs.contains(item.id))
+                return LibraryEntry(
+                    item: item,
+                    resumePosition: resume?.resumePosition,
+                    isWatched: watchedIDs.contains(item.id),
+                    lastPlayed: lastPlayed[item.id]
+                )
             }
     }
 }

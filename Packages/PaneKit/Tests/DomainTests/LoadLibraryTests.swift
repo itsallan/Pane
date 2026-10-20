@@ -14,7 +14,8 @@ struct LoadLibraryTests {
                 old.id: PlaybackProgress(position: .seconds(120), duration: nil),
                 barely.id: PlaybackProgress(position: .seconds(10), duration: .seconds(600)),
             ],
-            watched: [new.id]
+            watched: [new.id],
+            lastPlayed: [old.id: base]
         )
 
         let entries = try await LoadLibrary(library: InMemoryLibraryRepository(items: [old, barely, new]), progress: progress)()
@@ -22,5 +23,6 @@ struct LoadLibraryTests {
         #expect(entries.map(\.item.title) == ["New", "Barely", "Old"])
         #expect(entries.map(\.resumePosition) == [nil, nil, .seconds(120)])
         #expect(entries.map(\.isWatched) == [true, false, false])
+        #expect(entries.map(\.lastPlayed) == [nil, nil, base])
     }
 }

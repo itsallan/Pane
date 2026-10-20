@@ -6,12 +6,21 @@ public struct MediaItem: Sendable, Hashable, Identifiable {
     public var source: MediaSource
     public var duration: Duration?
     public var dateAdded: Date
+    public var folderID: LibraryFolder.ID?
 
-    public init(id: UUID = UUID(), title: String, source: MediaSource, duration: Duration? = nil, dateAdded: Date = .now) {
+    public init(
+        id: UUID = UUID(),
+        title: String,
+        source: MediaSource,
+        duration: Duration? = nil,
+        dateAdded: Date = .now,
+        folderID: LibraryFolder.ID? = nil
+    ) {
         self.id = id
         self.title = title
         self.source = source
         self.duration = duration
         self.dateAdded = dateAdded
+        self.folderID = folderID
     }
 }
