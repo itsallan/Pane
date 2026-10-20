@@ -12,7 +12,7 @@ public actor VLCThumbnailProvider: ThumbnailProvider {
 
         var fileName: String {
             let digest = SHA256.hash(data: Data(source.utf8)).map { String(format: "%02x", $0) }.joined()
-            return "\(digest)-\(second)-\(maxPixelSize).jpg"
+            return "\(digest)-\(second)-\(maxPixelSize)w.jpg"
         }
     }
 
@@ -105,15 +105,19 @@ private extension VLCThumbnailProvider {
             return .failure(.thumbnailFailed)
         }
 
+        // avcodec shows corrupted frames by default. A seek in a file without a usable index (Matroska over HTTP)
+        // lands mid-GOP, and the thumbnailer grabs the first picture out: grey, with smears where references are missing.
+        media.addOption(":avcodec-corrupted=0")
         let job = ThumbnailJob(destination: directory.appending(path: key.fileName), maxPixelSize: key.maxPixelSize)
         let thumbnailer = VLCMediaThumbnailer(media: media, delegate: job, andVLCLibrary: nil)
         thumbnailer.snapshotTime = VLCTime(.seconds(key.second))
-        // With cropping off, libvlc fits the picture inside this box and keeps the aspect ratio.
+        // VLCKit stretches the frame to whatever box it's given, so crop to the 16:9 every caller draws into.
         thumbnailer.thumbnailWidth = CGFloat(key.maxPixelSize)
-        thumbnailer.thumbnailHeight = CGFloat(key.maxPixelSize)
-        thumbnailer.cropsToFit = false
+        thumbnailer.thumbnailHeight = CGFloat(key.maxPixelSize * 9 / 16)
+        thumbnailer.cropsToFit = true
         thumbnailer.hardwareDecodingEnabled = true
-        thumbnailer.preciseSeek = false
+        // A fast seek snaps to a keyframe, which is often the black first frame of the file.
+        thumbnailer.preciseSeek = true
 
         let result = await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
