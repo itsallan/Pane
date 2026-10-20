@@ -13,7 +13,7 @@ Decisions made before the first line of code, and why. When code disagrees with 
 ## Module graph
 
 ```
-                 App targets (iOS/iPadOS, macOS, tvOS, visionOS)
+                      App targets (iOS/iPadOS, macOS)
         ┌──────────────┬──────────────┼──────────────┬───────────────┐
         ▼              ▼              ▼              ▼               ▼
    PlayerFeature  LibraryFeature  SettingsFeature  Playback         Data
@@ -23,8 +23,6 @@ Decisions made before the first line of code, and why. When code disagrees with 
    DesignSystem             Domain ◀─────────────────┴───────────────┘
                               ▲
                        PlaybackTesting  (tests and #Preview only)
-
-   watchOS app ──▶ Domain
 ```
 
 Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
@@ -40,7 +38,7 @@ Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so mod
 
 **Data**
 - SwiftData `@Model` records, internal, mapped to Domain entities at the repository edge. `@ModelActor` repositories keep `ModelContext` off main.
-- `KeychainCredentialStore: CredentialStore`. `ModelContainer` factory (on disk, or in memory for tests). Security-scoped bookmarks. The watch transport.
+- `KeychainCredentialStore: CredentialStore`. `ModelContainer` factory (on disk, or in memory for tests). Security-scoped bookmarks.
 
 **DesignSystem**
 - Color and typography tokens, Liquid Glass styles, `Scrubber` (with chapter notches and a thumbnail slot), `TransportButton`, `TrackPicker`. No Domain types beyond plain values.
@@ -52,7 +50,7 @@ Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so mod
 - `FakePlaybackEngine`, `FakeThumbnailProvider`, `FakeNetworkBrowser`, plus in-memory repositories and an in-memory `CredentialStore`. It depends only on Domain, so the graph stays inward and release builds dead-strip it. All the fakes share one target so previews and tests have one import. The name is from the build plan, even though the target holds more than playback fakes.
 
 **App targets**
-- Composition root, `AppRouter`, root navigation per platform, Now Playing and remote-command glue, macOS menu commands. The watchOS target links Domain only; VLCKit has no watchOS slice.
+- Composition root, `AppRouter`, root navigation per platform, Now Playing and remote-command glue, macOS menu commands.
 
 ## Media sources
 
@@ -132,7 +130,7 @@ public struct PlaybackState: Sendable, Equatable {
 There were two candidates: a protocol that returns a stream of `PlaybackState`, or one that requires an `@Observable` state object. The stream wins.
 
 - An `@Observable` requirement forces the engine to be a class and fixes its isolation in the protocol. In practice that means `@MainActor`, which puts VLC calls on main (see Threading).
-- Not every consumer is a view. `SaveProgress`, Now Playing and the watch bridge want every new state in a loop. `withObservationTracking` fires once per registration and has to be re-armed, so it's the wrong tool outside SwiftUI.
+- Not every consumer is a view. `SaveProgress` and Now Playing want every new state in a loop. `withObservationTracking` fires once per registration and has to be re-armed, so it's the wrong tool outside SwiftUI.
 - Domain stays Foundation-only. Observation is a separate module.
 - A fake is a continuation and a few `yield` calls, so tests script exact state sequences.
 
@@ -174,7 +172,7 @@ VLC quirks handled at the boundary:
 
 ## Video surface
 
-VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIView` on iOS, iPadOS, tvOS and visionOS, and an `NSView` on macOS.
+VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIView` on iOS and iPadOS, and an `NSView` on macOS.
 
 - **Created once, together with the player.** The `@MainActor` factory creates the drawable view and the `VLCMediaPlayer`, sets `drawable` on main, then hands the player to the actor as a `sending` parameter. After that, the engine never touches the view.
 - **The drawable outlives SwiftUI views.** `VideoSurface` is a `UIViewRepresentable` (or `NSViewRepresentable`) that returns a plain container and adds the session's persistent drawable as a subview. Rotation, fullscreen, column changes and window moves can recreate the representable, but they never free the drawable. If the drawable is freed mid-playback, VLC tears down its video output and the picture goes black.
@@ -186,7 +184,7 @@ VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIVie
   ```
 
   There's no `AnyView` and no environment key. The generic stays local because `LibraryFeature` never builds a player: it calls `onOpen(item)` and the app target builds it.
-- **Session lifetime belongs to the router.** The engine, model and surface are created in the open action, not in `body`, so redraws can't spawn extra engines. They're stored in `AppRouter.presentedSession` and closed on dismiss. Each macOS or visionOS player window owns its own session.
+- **Session lifetime belongs to the router.** The engine, model and surface are created in the open action, not in `body`, so redraws can't spawn extra engines. They're stored in `AppRouter.presentedSession` and closed on dismiss. Each macOS player window owns its own session.
 - Picture in Picture uses VLCKit 4's PiP-capable drawable. It stays inside Playback and will reach Domain as a capability flag on `PlaybackState`.
 
 ## Navigation
@@ -198,16 +196,9 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 | iPad | `NavigationSplitView`: sources sidebar (Library, Recents, Network), item list, detail | `fullScreenCover` |
 | macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in `.commands` |
 | iPhone | `TabView`, one `NavigationStack` per tab | `fullScreenCover` |
-| tvOS | Top `TabView`, `NavigationStack` per tab | `fullScreenCover` |
-| visionOS | `NavigationSplitView` in the main window | Separate resizable `WindowGroup` |
 
 - **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width, and swapping roots on rotation would throw away the stack path. On iPad, the split view already collapses into a stack in compact multitasking.
-- **Mac and visionOS players are windows** because people play several files side by side and expect to resize and close them like documents.
-- **tvOS focus:**
-  - Library shelves are `.focusSection()`s, and `defaultFocus` targets the primary item.
-  - In the player, transport is an overlay with `@FocusState`. `.onPlayPauseCommand` toggles playback and `.onMoveCommand` scrubs while the overlay is visible.
-  - `.onExitCommand` hides the overlay first and closes the player second.
-- **watchOS** is a remote. It sends commands and receives `PlaybackState` over WatchConnectivity. The transport lives in Data on the phone side, and the watch shares only Domain types.
+- **Mac players are windows** because people play several files side by side and expect to resize and close them like documents.
 
 ## Testing
 
@@ -218,6 +209,5 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 
 ## Open risks
 
-- VLCKit 4 is pre-release. visionOS slice availability, a usable SwiftPM binary target, and native A-B loop support in the pinned build all need confirming before the Playback target is created.
+- VLCKit 4 is pre-release. A usable SwiftPM binary target, and native A-B loop support in the pinned build all need confirming before the Playback target is created.
 - Delegate signatures may change between VLCKit 4 builds. The bridge contains that churn to one file.
-- The visionOS platform isn't installed on the development machine yet, so visionOS can't be built or verified until it is.
