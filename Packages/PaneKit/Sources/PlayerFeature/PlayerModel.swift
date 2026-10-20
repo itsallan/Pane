@@ -81,6 +81,14 @@ public final class PlayerModel {
 
     public var isPlaying: Bool { status == .playing }
 
+    /// Playing, or about to be once it has buffered. The transport shows pause for all of these.
+    public var isPlaybackActive: Bool {
+        switch status {
+        case .playing, .opening, .buffering: true
+        default: false
+        }
+    }
+
     public var isBuffering: Bool {
         switch status {
         case .opening, .buffering: true
@@ -119,7 +127,7 @@ public final class PlayerModel {
         if status == .ended {
             seek(to: .zero)
             Task { [engine] in await engine.play() }
-        } else if isPlaying {
+        } else if isPlaybackActive {
             Task { [engine] in await engine.pause() }
         } else {
             Task { [engine] in await engine.play() }
