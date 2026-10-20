@@ -161,25 +161,29 @@ Errors: typed throws only where the caller can respond on the spot (an unresolva
 VLCKit is Objective-C. Its delegate callbacks and libvlc events arrive on threads we don't control. Some `VLCMediaPlayer` calls, such as `stop` and media replacement, block while libvlc tears down outputs.
 
 1. **The engine is an actor with its own serial executor.** `VLCPlaybackEngine` is an `actor` whose `unownedExecutor` is a private `DispatchSerialQueue`. Every `VLCMediaPlayer` access happens on that queue, never on main, so a blocking `stop` can't drop UI frames. The non-Sendable player stays confined to the actor.
-2. **Callbacks copy values and never read player state.** An internal `NSObject` delegate bridge has `nonisolated` methods. Each callback turns its arguments into a Sendable `EngineEvent` (`.stateChanged`, `.timeChanged`, `.tracksChanged`, `.chaptersChanged`, `.frameCaptured(path)`) and yields it into an `AsyncStream<EngineEvent>.Continuation`. The continuation is Sendable, so no `@unchecked` is needed.
+2. **Callbacks copy values and never read player state.** An internal `NSObject` delegate bridge has `nonisolated` methods. Each callback turns its arguments into a Sendable `EngineEvent` (`.stateChanged`, `.bufferingChanged`, `.lengthChanged`, `.timeChanged`, `.tracksChanged`, `.chaptersChanged`, `.capabilitiesChanged`, `.frameCaptured`) and yields it into an `AsyncStream<EngineEvent>.Continuation`. The continuation is Sendable, so no `@unchecked` is needed.
 3. **The actor reacts on its own executor.** A task inside the actor iterates those events, reads player properties there, builds a `PlaybackState`, and yields it to subscribers. Reading state inside the callback would race with libvlc.
 4. **The consumer makes the MainActor hop.** `PlayerModel` is `@MainActor` and iterates `engine.states()` from the view's `.task {}`. Each `await` resumes on main, and leaving the screen cancels the task. Nothing calls `DispatchQueue.main.async`, and only Sendable values cross isolation boundaries.
 
 VLC quirks handled at the boundary:
 - **Stale times after a seek.** VLC reports the old time briefly after a seek. While scrubbing and just after seeking, `PlayerModel` shows its target position and ignores incoming progress until a value lands near the target or a short timeout passes.
-- **Frame capture finishes asynchronously.** The actor keeps a `CheckedContinuation` per pending capture, resumes it on `.frameCaptured`, and fails it with `.captureFailed` on timeout.
+- **Frame capture finishes asynchronously.** The actor keeps a `CheckedContinuation` per pending capture, resumes it on `.frameCaptured`, and fails it with `.captureFailed` on timeout. The snapshot callback carries no path, so captures complete in request order. Capturing without a video output raises an Objective-C exception, so the engine checks `hasVideoOut` first.
+- **No ended or buffering state.** VLCKit 4 reports the end of the media as a stop nobody asked for, and buffering as a separate 0...1 fill (the header says percent). The engine derives `.ended` and `.buffering` from those.
+- **Swapping media sends no state change.** Loading over a playing media keeps the player in `playing` with no stop or opening events, so the engine seeds its state from the player's at `load`.
+- **Seeks before the input is open are dropped.** `load` starts playback (libvlc has no prepare step); a seek before the input is open and seekable is held and applied once it is.
+- **Seekability and time.** Seekability changes arrive only as a notification, and time ticks come from a main run loop timer (set to 4 Hz). Both just yield events into the bridge.
 - **Delegate names change between VLCKit 4 pre-releases.** The bridge is the only file that has to match them. Pin a version and check the headers on upgrade.
 
 ## Video surface
 
 VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIView` on iOS and iPadOS, and an `NSView` on macOS.
 
-- **Created once, together with the player.** The `@MainActor` factory creates the drawable view and the `VLCMediaPlayer`, sets `drawable` on main, then hands the player to the actor as a `sending` parameter. After that, the engine never touches the view.
+- **Created once, together with the player.** `VLCPlaybackEngine.makeWithSurface()` is `@MainActor`. It creates the drawable view (`VideoDrawable`) and passes it to the engine's synchronous init, which runs on main, creates the `VLCMediaPlayer` and sets `drawable` there. The player is never `sending`: assigning the main-actor view to `drawable` would merge their regions, so a player built outside the actor couldn't be sent in. After init, the engine never touches the view.
 - **The drawable outlives SwiftUI views.** `VideoSurface` is a `UIViewRepresentable` (or `NSViewRepresentable`) that returns a plain container and adds the session's persistent drawable as a subview. Rotation, fullscreen, column changes and window moves can recreate the representable, but they never free the drawable. If the drawable is freed mid-playback, VLC tears down its video output and the picture goes black.
 - **Features never see VLCKit.** The player screen is generic over its surface:
 
   ```swift
-  PlayerScreen(model: model) { VideoSurface(session.surface) }   // app target
+  PlayerScreen(model: model) { VideoSurface(session.drawable) }  // app target
   PlayerScreen(model: .preview) { Color.black }                  // #Preview
   ```
 
@@ -209,5 +213,5 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 
 ## Open risks
 
-- VLCKit 4 is pre-release. A usable SwiftPM binary target, and native A-B loop support in the pinned build all need confirming before the Playback target is created.
+- VLCKit 4 is pre-release. 4.0.0-a25 ships a usable SwiftPM binary target and native A-B looping (`setABLoopFrom(_:to:)`); the engine falls back to checking time ticks if libvlc refuses a loop.
 - Delegate signatures may change between VLCKit 4 builds. The bridge contains that churn to one file.
