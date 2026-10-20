@@ -15,6 +15,7 @@ public struct Scrubber<Preview: View>: View {
 
     @State private var width: CGFloat = 1
     @State private var drag: (value: Double, translation: CGFloat)?
+    @State private var previewSize = CGSize.zero
     @ScaledMetric(relativeTo: .body) private var restingThickness = 5.0
     @ScaledMetric(relativeTo: .body) private var editingThickness = 14.0
     @ScaledMetric(relativeTo: .body) private var previewGap = 14.0
@@ -44,9 +45,8 @@ public struct Scrubber<Preview: View>: View {
 
     public var body: some View {
         let track = ChapteredTrack(marks: chapterMarks)
-        let previewLift = previewGap - Metrics.minimumHitTarget / 2 + editingThickness / 2
-        let playhead = clamped(value) * width
-        let trackWidth = width
+        let barTop = (Metrics.minimumHitTarget - editingThickness) / 2
+        let previewCenter = previewCenterX(playhead: clamped(value) * width, width: width, previewWidth: previewSize.width)
         ZStack(alignment: .leading) {
             track.fill(Color.scrubberTrack)
             track.fill(Color.scrubberFill)
@@ -62,8 +62,8 @@ public struct Scrubber<Preview: View>: View {
             if isEditing {
                 preview
                     .fixedSize()
-                    .alignmentGuide(.top) { $0[.bottom] + previewLift }
-                    .alignmentGuide(.leading) { previewLeading(playhead: playhead, width: trackWidth, previewWidth: $0.width) }
+                    .onGeometryChange(for: CGSize.self) { $0.size } action: { previewSize = $0 }
+                    .offset(x: previewCenter - previewSize.width / 2, y: barTop - previewGap - previewSize.height)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.9, anchor: .bottom)))
                     .allowsHitTesting(false)
             }
@@ -132,7 +132,7 @@ extension Scrubber where Preview == EmptyView {
 }
 
 // Keeps the preview centered over the playhead without running off either end of the track.
-private func previewLeading(playhead: CGFloat, width: CGFloat, previewWidth: CGFloat) -> CGFloat {
+private func previewCenterX(playhead: CGFloat, width: CGFloat, previewWidth: CGFloat) -> CGFloat {
     let upper = max(width - previewWidth / 2, previewWidth / 2)
     return min(max(playhead, previewWidth / 2), upper)
 }
