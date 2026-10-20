@@ -39,9 +39,13 @@ public final class PlayerModel {
     }
 
     private let engine: any PlaybackEngine
-    private let source: MediaSource
+    private let item: MediaItem
+    private let resume: ResumePlayback?
+    private let recordProgress: (@Sendable (PlaybackProgress, SaveProgressTrigger) async -> Void)?
+    private let pickTracks: PickPreferredTracks?
     private let thumbnails: (any ThumbnailProvider)?
     private let screenBrightness: (any ScreenBrightness)?
+    private let originalBrightness: Double?
     private let elapsed: @Sendable () -> Duration
     private let sleep: @Sendable (Duration) async throws -> Void
 
@@ -49,12 +53,22 @@ public final class PlayerModel {
     private var pendingSeek: (target: Duration, deadline: Duration)?
     private var isAdjustingVolume = false
     private var rateBeforeBoost = 1.0
+    // Until the resume seek lands, the engine reports the pre-seek time, which must neither show nor be saved.
+    private var resumeTarget: Duration?
+    private var resumeDeadline: Duration?
+    private var hasPickedTracks = false
+    private var manualTrackKinds: Set<MediaTrack.Kind> = []
+    private var hasAdjustedBrightness = false
+    private var progressWrite: Task<Void, Never>?
+    private var hasPlayed = false
+    private var isClosed = false
     private var hasStartedLoading = false
     private var hideTask: Task<Void, Never>?
     private var thumbnailTask: Task<Void, Never>?
     private var requestedThumbnailSecond: Int64?
 
-    public init<C: Clock<Duration>>(
+    /// Plays a source without resuming, saving progress or picking tracks.
+    public convenience init<C: Clock<Duration>>(
         engine: any PlaybackEngine,
         source: MediaSource,
         title: String? = nil,
@@ -62,15 +76,67 @@ public final class PlayerModel {
         screenBrightness: (any ScreenBrightness)? = nil,
         clock: C = ContinuousClock()
     ) {
+        self.init(
+            engine: engine,
+            item: MediaItem(title: title ?? "", source: source),
+            title: title,
+            resume: nil,
+            recordProgress: nil,
+            pickTracks: nil,
+            thumbnails: thumbnails,
+            screenBrightness: screenBrightness,
+            clock: clock
+        )
+    }
+
+    /// Plays a library item: resumes where it left off, saves progress as it plays and picks the preferred tracks.
+    public convenience init<C: Clock<Duration>, P: Clock<Duration>>(
+        engine: any PlaybackEngine,
+        item: MediaItem,
+        resume: ResumePlayback,
+        saveProgress: SaveProgress<P>,
+        pickTracks: PickPreferredTracks,
+        thumbnails: (any ThumbnailProvider)? = nil,
+        screenBrightness: (any ScreenBrightness)? = nil,
+        clock: C = ContinuousClock()
+    ) {
+        self.init(
+            engine: engine,
+            item: item,
+            title: item.title,
+            resume: resume,
+            recordProgress: { progress, trigger in try? await saveProgress(progress, trigger: trigger) },
+            pickTracks: pickTracks,
+            thumbnails: thumbnails,
+            screenBrightness: screenBrightness,
+            clock: clock
+        )
+    }
+
+    private init<C: Clock<Duration>>(
+        engine: any PlaybackEngine,
+        item: MediaItem,
+        title: String?,
+        resume: ResumePlayback?,
+        recordProgress: (@Sendable (PlaybackProgress, SaveProgressTrigger) async -> Void)?,
+        pickTracks: PickPreferredTracks?,
+        thumbnails: (any ThumbnailProvider)?,
+        screenBrightness: (any ScreenBrightness)?,
+        clock: C
+    ) {
         self.engine = engine
-        self.source = source
+        self.item = item
         self.title = title
+        self.resume = resume
+        self.recordProgress = recordProgress
+        self.pickTracks = pickTracks
         self.thumbnails = thumbnails
         self.screenBrightness = screenBrightness
         let origin = clock.now
         elapsed = { origin.duration(to: clock.now) }
         sleep = { try await clock.sleep(for: $0) }
-        brightness = screenBrightness?.level
+        originalBrightness = screenBrightness?.level
+        brightness = originalBrightness
     }
 
     public var failure: PlaybackError? {
@@ -113,9 +179,19 @@ public final class PlayerModel {
             hasStartedLoading = true
             await load()
         }
-        for await state in states {
+        for await state in states where !isClosed {
             apply(state)
         }
+    }
+
+    /// Saves where playback stopped, puts the screen back as it was and closes the engine.
+    public func close() async {
+        guard !isClosed else { return }
+        saveProgress(.close)
+        isClosed = true
+        restoreBrightness()
+        await progressWrite?.value
+        await engine.close()
     }
 
     public func retry() {
@@ -152,10 +228,12 @@ public final class PlayerModel {
     }
 
     public func selectTrack(_ track: MediaTrack) {
+        manualTrackKinds.insert(track.kind)
         Task { [engine] in try? await engine.selectTrack(track.id) }
     }
 
     public func turnOffSubtitles() {
+        manualTrackKinds.insert(.subtitle)
         Task { [engine] in await engine.deselectTrack(kind: .subtitle) }
     }
 
@@ -167,11 +245,24 @@ public final class PlayerModel {
 
     private func load() async {
         loadFailure = nil
+        hasPickedTracks = false
         do {
-            try await engine.load(source)
+            if let resume {
+                if let resumed = try await resume(item) {
+                    awaitResume(at: resumed)
+                }
+            } else {
+                try await engine.load(item.source)
+            }
         } catch {
             loadFailure = error
         }
+    }
+
+    private func awaitResume(at target: Duration) {
+        position = target
+        resumeTarget = target
+        resumeDeadline = nil
     }
 
     private func seek(to target: Duration) {
@@ -182,6 +273,7 @@ public final class PlayerModel {
     }
 
     private func beginPendingSeek(to target: Duration) {
+        resumeTarget = nil
         position = clamp(target)
         pendingSeek = (position, elapsed() + Self.seekTimeout)
     }
@@ -223,8 +315,8 @@ extension PlayerModel {
         guard second != requestedThumbnailSecond else { return }
         requestedThumbnailSecond = second
         thumbnailTask?.cancel()
-        thumbnailTask = Task { [weak self, source] in
-            let url = try? await thumbnails.thumbnail(for: source, at: position, maxPixelSize: Self.thumbnailPixelSize)
+        thumbnailTask = Task { [weak self, item] in
+            let url = try? await thumbnails.thumbnail(for: item.source, at: position, maxPixelSize: Self.thumbnailPixelSize)
             guard let url, !Task.isCancelled, let self, self.isScrubbing else { return }
             self.scrubThumbnail = url
         }
@@ -272,6 +364,31 @@ extension PlayerModel {
         let level = min(max(level, 0), 1)
         screenBrightness.level = level
         brightness = level
+        hasAdjustedBrightness = true
+    }
+
+    private func restoreBrightness() {
+        guard hasAdjustedBrightness, let screenBrightness, let originalBrightness else { return }
+        screenBrightness.level = originalBrightness
+    }
+}
+
+// MARK: - Scene phase
+
+extension PlayerModel {
+    /// The app is about to background, or something (Control Center, an alert) is covering it.
+    public func sceneDidResignActive() {
+        restoreBrightness()
+    }
+
+    public func sceneDidEnterBackground() {
+        restoreBrightness()
+        saveProgress(.background)
+    }
+
+    public func sceneDidBecomeActive() {
+        guard hasAdjustedBrightness, let screenBrightness, let brightness else { return }
+        screenBrightness.level = brightness
     }
 }
 
@@ -330,7 +447,22 @@ extension PlayerModel {
         if !isAdjustingVolume {
             assign(\.volume, state.volume)
         }
-        receive(position: state.progress.position)
+        if status == .playing {
+            hasPlayed = true
+        }
+        if status == .playing, resumeTarget != nil, resumeDeadline == nil {
+            resumeDeadline = elapsed() + Self.seekTimeout
+        }
+        let didLandSeek = receive(position: state.progress.position)
+
+        if didLandSeek {
+            saveProgress(.seekEnded)
+        } else if status == .playing {
+            saveProgress(.tick)
+        }
+        if status == .playing, !hasPickedTracks {
+            pickPreferredTracks(for: state)
+        }
 
         guard status != previousStatus else { return }
         switch status {
@@ -343,16 +475,52 @@ extension PlayerModel {
             endSpeedBoost()
             revealControls()
         }
+        if status == .paused || status == .ended {
+            saveProgress(.pause)
+        }
     }
 
-    private func receive(position incoming: Duration) {
-        guard !isScrubbing else { return }
+    /// Returns whether a seek just landed.
+    private func receive(position incoming: Duration) -> Bool {
+        guard !isScrubbing else { return false }
+        if let resumeTarget {
+            let hasTimedOut = resumeDeadline.map { elapsed() >= $0 } ?? false
+            guard isNear(incoming, resumeTarget) || hasTimedOut else { return false }
+            self.resumeTarget = nil
+            resumeDeadline = nil
+        }
+        var didLand = false
         if let pendingSeek {
-            let distance = incoming > pendingSeek.target ? incoming - pendingSeek.target : pendingSeek.target - incoming
-            guard distance <= Self.seekTolerance || elapsed() >= pendingSeek.deadline else { return }
+            guard isNear(incoming, pendingSeek.target) || elapsed() >= pendingSeek.deadline else { return false }
             self.pendingSeek = nil
+            didLand = true
         }
         assign(\.position, incoming)
+        return didLand
+    }
+
+    private func isNear(_ position: Duration, _ target: Duration) -> Bool {
+        let distance = position > target ? position - target : target - position
+        return distance <= Self.seekTolerance
+    }
+
+    // Tracks arrive one at a time while the input opens; by the first playing state they've settled.
+    private func pickPreferredTracks(for state: PlaybackState) {
+        guard let pickTracks else { return }
+        hasPickedTracks = true
+        Task { [manualTrackKinds] in try? await pickTracks(for: state, keeping: manualTrackKinds) }
+    }
+
+    // Writes are chained so a pause can't land before the tick that preceded it.
+    private func saveProgress(_ trigger: SaveProgressTrigger) {
+        // Before anything played, the position is a placeholder, and saving it would wipe the real resume point.
+        guard let recordProgress, hasPlayed, !isClosed, !isScrubbing, resumeTarget == nil, pendingSeek == nil else { return }
+        let progress = PlaybackProgress(position: position, duration: duration)
+        let previous = progressWrite
+        progressWrite = Task {
+            await previous?.value
+            await recordProgress(progress, trigger)
+        }
     }
 
     private func assign<Value: Equatable>(_ keyPath: ReferenceWritableKeyPath<PlayerModel, Value>, _ value: Value) {

@@ -9,6 +9,7 @@ public struct PlayerScreen<Surface: View>: View {
     private let surface: Surface
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
     @FocusState private var isFocused: Bool
 
     public init(model: PlayerModel, onDismiss: (() -> Void)? = nil, @ViewBuilder surface: () -> Surface) {
@@ -32,6 +33,9 @@ public struct PlayerScreen<Surface: View>: View {
         .animation(reduceMotion ? .linear(duration: 0.15) : .smooth(duration: 0.3), value: model.areControlsVisible)
         .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
         .task { await model.run() }
+        .onChange(of: scenePhase) { _, phase in
+            sceneDidChange(to: phase)
+        }
         .persistentSystemOverlays(model.areControlsVisible ? .automatic : .hidden)
         #if os(iOS)
         .statusBarHidden(!model.areControlsVisible)
@@ -96,6 +100,15 @@ public struct PlayerScreen<Surface: View>: View {
         }
         .padding(.horizontal, Metrics.edgeInset)
         .padding(.bottom, 8)
+    }
+
+    private func sceneDidChange(to phase: ScenePhase) {
+        switch phase {
+        case .active: model.sceneDidBecomeActive()
+        case .inactive: model.sceneDidResignActive()
+        case .background: model.sceneDidEnterBackground()
+        @unknown default: break
+        }
     }
 
     private func chromeTransition(edge: Edge) -> AnyTransition {

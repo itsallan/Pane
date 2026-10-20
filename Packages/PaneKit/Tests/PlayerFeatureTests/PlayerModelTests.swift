@@ -238,6 +238,43 @@ struct PlayerModelTests {
         #expect(model.brightness == 1)
     }
 
+    @Test func closingRestoresTheOriginalBrightness() async {
+        let screen = TestScreenBrightness(level: 0.4)
+        let engine = FakePlaybackEngine()
+        let model = PlayerModel(engine: engine, source: source, screenBrightness: screen, clock: clock)
+
+        model.setBrightness(0.9)
+        await model.close()
+
+        #expect(screen.level == 0.4)
+        #expect(engine.calls.contains(.close))
+    }
+
+    @Test func backgroundingRestoresBrightnessUntilActiveAgain() {
+        let screen = TestScreenBrightness(level: 0.4)
+        let model = PlayerModel(engine: FakePlaybackEngine(), source: source, screenBrightness: screen, clock: clock)
+
+        model.setBrightness(0.9)
+        model.sceneDidResignActive()
+        model.sceneDidEnterBackground()
+        #expect(screen.level == 0.4)
+
+        model.sceneDidBecomeActive()
+        #expect(screen.level == 0.9)
+    }
+
+    @Test func untouchedBrightnessIsLeftAlone() async {
+        let screen = TestScreenBrightness(level: 0.4)
+        let model = PlayerModel(engine: FakePlaybackEngine(), source: source, screenBrightness: screen, clock: clock)
+
+        // Someone changed it in Control Center while the player was open; that choice wins.
+        screen.level = 0.7
+        model.sceneDidEnterBackground()
+        await model.close()
+
+        #expect(screen.level == 0.7)
+    }
+
     private func advancePastAutoHide() async {
         for _ in 0..<10 {
             clock.advance(by: PlayerModel.autoHideDelay)
