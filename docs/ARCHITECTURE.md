@@ -17,125 +17,167 @@ Decisions made before the first line of code, and why. When code disagrees with 
         ┌──────────────┬──────────────┼──────────────┬───────────────┐
         ▼              ▼              ▼              ▼               ▼
    PlayerFeature  LibraryFeature  SettingsFeature  Playback         Data
-        │              │              │            (VLCKit)      (SwiftData)
+        │              │              │            (VLCKit)   (SwiftData, Keychain)
         ├──────────────┴──────┬───────┘              │               │
         ▼                     ▼                      │               │
    DesignSystem             Domain ◀─────────────────┴───────────────┘
                               ▲
-                         DomainFakes  (tests and #Preview only)
+                       PlaybackTesting  (tests and #Preview only)
 
    watchOS app ──▶ Domain
 ```
 
-Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names (`PlayerFeature.PlayerModel`, not `Player.Player`).
+Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
 
 **Domain** (Foundation only)
-- Entities: `MediaItem`, `MediaSource` (`.file(URL)`, `.bookmark(Data)`, `.network(URL)`), `MediaTrack`, `PlaybackSnapshot`, `PlaybackStatus`, `PlaybackError`, `ResumePosition`.
-- Protocols: `PlaybackEngine`, `LibraryRepository`, `ResumePositionRepository`.
-- Use cases are small structs with one `callAsFunction`: `StartPlayback` (load, then seek to the stored resume position), `RecordProgress`, `LoadLibrary`.
+- Entities: `MediaItem`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `PlaybackError`.
+- Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`.
+- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`.
 
 **Playback** (the only module that imports VLCKit, through `@preconcurrency import VLCKit`)
-- Public: `VLCPlaybackEngine: PlaybackEngine`, `VideoSurface: View`, and a `@MainActor` factory that returns both.
-- Everything else is internal, so no `VLCMedia`, `VLCMediaPlayer` or VLC enum crosses the module boundary.
+- Public: `VLCPlaybackEngine`, `VLCThumbnailProvider`, `VLCNetworkBrowser`, `VideoSurface: View`, and a `@MainActor` factory that returns the engine and its surface together.
+- Network discovery lives here rather than in Data because it needs `VLCMediaDiscoverer`, and VLCKit stays in one module. Data still owns saved servers and their secrets.
 
 **Data**
-- SwiftData `@Model` records, internal. They are mapped to Domain entities at the repository edge.
-- `@ModelActor` repositories, so `ModelContext` never runs on the main actor during imports or scans.
-- A `ModelContainer` factory (on disk, or in memory for tests), security-scoped bookmark resolution, and later network sources and the watch transport.
+- SwiftData `@Model` records, internal, mapped to Domain entities at the repository edge. `@ModelActor` repositories keep `ModelContext` off main.
+- `KeychainCredentialStore: CredentialStore`. `ModelContainer` factory (on disk, or in memory for tests). Security-scoped bookmarks. The watch transport.
 
 **DesignSystem**
-- Color and typography tokens, Liquid Glass styles, and the reusable controls `Scrubber`, `TransportButton` and `TrackPicker`. No Domain knowledge beyond plain values.
+- Color and typography tokens, Liquid Glass styles, `Scrubber` (with chapter notches and a thumbnail slot), `TransportButton`, `TrackPicker`. No Domain types beyond plain values.
 
 **PlayerFeature, LibraryFeature, SettingsFeature**
-- Each one is a screen view plus a `@MainActor @Observable final class` model. Inputs are Domain protocols and use cases, passed in through `init`.
-- Navigation goes out through closures (`onOpen: (MediaItem) -> Void`). No feature imports another feature.
+- Each is a screen view plus a `@MainActor @Observable final class` model, given Domain protocols and use cases through `init`. Navigation goes out through closures (`onOpen: (MediaItem) -> Void`). No feature imports another.
 
-**DomainFakes**
-- `FakePlaybackEngine`, plus in-memory repositories. This is the one target beyond the CLAUDE.md list. It depends only on Domain, so the graph stays inward, and release builds dead-strip it. Without it, every feature would carry its own preview fake.
+**PlaybackTesting**
+- `FakePlaybackEngine`, `FakeThumbnailProvider`, `FakeNetworkBrowser`, plus in-memory repositories and an in-memory `CredentialStore`. It depends only on Domain, so the graph stays inward and release builds dead-strip it. All the fakes share one target so previews and tests have one import. The name is from the build plan, even though the target holds more than playback fakes.
 
 **App targets**
-- Composition root, `AppRouter`, root navigation per platform, Now Playing and remote command glue (MediaPlayer framework), and macOS menu commands.
-- The watchOS target links Domain only. VLCKit has no watchOS slice, and the watch never decodes video.
+- Composition root, `AppRouter`, root navigation per platform, Now Playing and remote-command glue, macOS menu commands. The watchOS target links Domain only; VLCKit has no watchOS slice.
+
+## Media sources
+
+```swift
+public enum MediaSource: Sendable, Hashable {
+    case file(bookmark: Data)                              // security-scoped, resolved by Data
+    case stream(URL)                                       // http(s), hls, rtsp...
+    case networkShare(server: NetworkServer.ID, path: String)
+}
+
+public struct NetworkServer: Sendable, Hashable, Identifiable {
+    public enum Kind: Sendable { case smb, sftp, upnp }
+    public let id: UUID
+    public var kind: Kind, host: String, port: Int?, displayName: String
+    public var requiresCredentials: Bool
+}
+```
+
+- `.networkShare` refers to its server by ID, never by a URL with userinfo. Credentials never appear in a `MediaSource`, a log line, SwiftData or `UserDefaults`.
+- `CredentialStore` (Domain) gets, saves and deletes a `NetworkCredential` by `NetworkServer.ID`. `KeychainCredentialStore` (Data) stores it as `kSecClassInternetPassword`. SwiftData holds only the `NetworkServer` record.
+- The engine and `VLCNetworkBrowser` receive the `CredentialStore` at construction. When they open a share, they look up the credential on their own executor and pass it as per-media VLC options (`:smb-user`, `:smb-pwd`, `:sftp-user`...), not in the MRL. VLC login dialogs (`VLCDialogProvider`) are answered from the same store.
+- If a credential is missing or rejected, the result is `.authenticationRequired(server:)`: thrown from `NetworkBrowser`, and as `.failed` in the playback state. The feature asks the user, saves the credential through the store, and retries.
+- `NetworkBrowser` covers discovery (`servers() -> AsyncStream<[NetworkServer]>`, from `VLCMediaDiscoverer` for SMB and UPnP) and listing (`contents(of:path:) async throws(PlaybackError) -> [NetworkEntry]`). SFTP servers are added by hand because there's no discovery protocol.
 
 ## PlaybackEngine
 
 ```swift
 public protocol PlaybackEngine: Sendable {
-    func snapshots() -> AsyncStream<PlaybackSnapshot>
+    func states() -> AsyncStream<PlaybackState>
 
     func load(_ source: MediaSource) async throws(PlaybackError)
     func play() async
     func pause() async
     func seek(to position: Duration, precision: SeekPrecision) async
     func seek(by offset: Duration) async
+    func seek(toChapter id: Chapter.ID) async
+    func stepFrame() async                                 // only while paused
+    func setLoop(_ range: ClosedRange<Duration>?) async    // A-B loop
     func setRate(_ rate: Double) async
+    func setVolume(_ level: Double) async                  // 0...2, above 1 is boost
+    func setVideoScaling(_ scaling: VideoScaling) async    // .fit, .fill, .aspect(w, h)
     func selectTrack(_ id: MediaTrack.ID) async throws(PlaybackError)
     func deselectTrack(kind: MediaTrack.Kind) async
     func addSubtitle(from url: URL) async throws(PlaybackError)
     func setSubtitleDelay(_ delay: Duration) async
-    func snapshot() async throws(PlaybackError) -> URL
+    func captureFrame() async throws(PlaybackError) -> URL
     func close() async
 }
 
-public struct PlaybackSnapshot: Sendable, Equatable {
-    public var status: PlaybackStatus          // idle, opening, buffering(Double), playing, paused, ended, failed(PlaybackError)
-    public var position: Duration
-    public var duration: Duration?
-    public var rate: Double
-    public var tracks: [MediaTrack]            // audio, video, subtitle; `MediaTrack.Kind` tells them apart
+public struct PlaybackState: Sendable, Equatable {
+    public var status: Status          // idle, opening, buffering(Double), playing, paused, ended, failed(PlaybackError)
+    public var progress: PlaybackProgress   // position, duration
+    public var rate: Double, volume: Double, videoScaling: VideoScaling
+    public var tracks: [MediaTrack]    // kind, language, title, isDefault, isForced
     public var selectedTrackIDs: Set<MediaTrack.ID>
+    public var chapters: [Chapter]     // id, title, start
+    public var loop: ClosedRange<Duration>?
     public var subtitleDelay: Duration
-    public var isSeekable: Bool
-    public var videoSize: CGSize?
+    public var isSeekable: Bool, videoSize: CGSize?
 }
 ```
 
+### What belongs on the engine and what doesn't
+
+- **Chapters are on the engine.** Only the demuxer knows them. `seek(toChapter:)` uses VLC's chapter navigation instead of seeking to `start`, because DVD and Matroska-edition chapter times aren't always reliable offsets.
+- **Volume is on the engine.** Boost above 100% has to be done in VLC's audio output. The system volume tops out at 100%, and nothing outside the decoder can amplify samples.
+- **Frame step is on the engine.** It's a decoder operation (VLC's next-frame); nothing in the feature can emulate it. It steps forward only, as VLC does.
+- **The A-B loop is on the engine, with state in the feature.** A loop in `PlayerModel` would watch position ticks (about 4 Hz) and overshoot B by up to 250 ms each pass. The engine uses libvlc's native A-B loop, or checks the time on its own executor if that isn't available. `PlayerModel` only owns the UI for setting A and B.
+- **Video scaling is on the engine.** VLC crops and scales inside its video output, the same on every platform. A SwiftUI `scaleEffect` on the surface would stretch the layer and break subtitles, which VLC renders into the same frame. Pinch-to-fill is a gesture in `PlayerScreen` that calls `setVideoScaling(.fill)`.
+- **Thumbnails are a separate protocol, `ThumbnailProvider`.** `func thumbnail(for: MediaSource, at: Duration, maxPixelSize: Int) async throws(PlaybackError) -> URL`.
+  - It is separate from the engine because it has a different lifecycle (Library uses it for posters too) and has to run on its own VLC media instance so it never disturbs playback.
+  - `VLCThumbnailProvider` wraps VLC's thumbnailer, rounds requests down to 5-second buckets, and caches JPEGs on disk under Caches, keyed by source and bucket. An in-memory index sits in the actor.
+  - While the user scrubs, `PlayerModel` cancels the previous request before starting the next. The provider also coalesces identical in-flight requests.
+
 ### State: AsyncStream at the boundary, `@Observable` in the feature
 
-There were two candidates: a protocol that returns a stream of snapshots, or a protocol that requires an `@Observable` snapshot object. The stream wins.
+There were two candidates: a protocol that returns a stream of `PlaybackState`, or one that requires an `@Observable` state object. The stream wins.
 
-- An `@Observable` requirement forces the engine to be a class and fixes its isolation in the protocol. In practice that means `@MainActor`, which puts VLC calls on main (see Threading). A stream says nothing about where the engine runs.
-- Not every consumer is a view. `RecordProgress`, Now Playing info and the watch bridge all want "every new state" in a loop. `withObservationTracking` fires once per registration and has to be re-armed by hand, so it's the wrong tool outside SwiftUI.
-- Domain stays Foundation-only. Observation is a separate module, and CLAUDE.md keeps Domain to Foundation.
-- A fake is a continuation and a few `yield` calls. Tests can script exact state sequences.
+- An `@Observable` requirement forces the engine to be a class and fixes its isolation in the protocol. In practice that means `@MainActor`, which puts VLC calls on main (see Threading).
+- Not every consumer is a view. `SaveProgress`, Now Playing and the watch bridge want every new state in a loop. `withObservationTracking` fires once per registration and has to be re-armed, so it's the wrong tool outside SwiftUI.
+- Domain stays Foundation-only. Observation is a separate module.
+- A fake is a continuation and a few `yield` calls, so tests script exact state sequences.
 
-`PlayerModel` is the observable snapshot that SwiftUI reads. It copies each snapshot field into its own stored property, and only when the value changed. Observation therefore invalidates the time label four times a second without touching the track menu.
+`PlayerModel` is what SwiftUI observes. It copies each field into its own stored property, and only when the value changed, so a progress tick doesn't invalidate the track menu.
 
-### Stream semantics
+Stream semantics:
+- `states()` returns a new stream per call, and the engine fans out to every live subscriber.
+- A new subscriber gets the current state immediately.
+- Buffering is `.bufferingNewest(1)`. Every value is a full state, not a delta, so skipping values is safe.
+- `onTermination` removes the subscriber, so cancelling the consuming task cleans up.
 
-- `snapshots()` returns a new stream per call, and the engine fans out to every live subscriber.
-- A new subscriber gets the current snapshot immediately, so late subscribers don't render an empty player.
-- Buffering is `.bufferingNewest(1)`. Every value is a full snapshot, not a delta, so a slow consumer can skip values without ending up wrong.
-- `onTermination` removes the subscriber, so cancelling the consuming task is enough to clean up.
+Errors: typed throws only where the caller can respond on the spot (an unresolvable bookmark, an unknown track, an unreadable subtitle file, a failed capture, missing credentials). Decoding and network failures happen after `load` returns and arrive as `.failed`. `captureFrame()` returns a file URL in Caches, not an image type, so Domain stays free of UIKit and AppKit.
 
-### Errors
+## Use cases
 
-Typed throws only where the caller can respond on the spot: an unresolvable bookmark, an unknown track ID, an unreadable subtitle file, a failed snapshot. Decoding and network failures happen after `load` returns and arrive as `.failed(PlaybackError)` in the stream, because VLC only discovers them while opening.
-
-Snapshots return a file URL in the caches directory, not an image type, which keeps Domain free of UIKit and AppKit. The feature decides whether to share it, save it or show it.
+- **ResumePlayback**: loads the source, then seeks to the saved `PlaybackProgress` unless it's under 30 s or over 95% of the duration. Under 30 s, the user barely started and the intro is cheap to rewatch. Over 95%, they're in the credits, so starting over is what they want. If the duration is unknown (a live stream), it resumes only when the saved position is at least 30 s.
+- **SaveProgress**: writes at most once every 10 s while playing. It also writes immediately on pause, on the end of a seek, on `close()` and when the scene moves to the background, so a kill loses at most 10 s. Passing 95% marks the item watched and clears the resume point. Throttling lives in the use case (a `ContinuousClock` timestamp), not the repository, so the fake repository sees the same writes the real one does.
+- **PickPreferredTracks**: runs once per `load`, when tracks first appear in the state. Language matching uses `Locale.Language`, so `en`, `eng` and `English` compare equal.
+  - Audio: the first track matching `TrackPreferences.audioLanguages` in order. Otherwise the track the container marks as default. Otherwise the first track.
+  - Subtitles, depending on `TrackPreferences.subtitleMode`:
+    - `.off`: none, except forced tracks in the chosen audio language.
+    - `.auto`: the same as `.off` when the audio already matches a preferred language. Otherwise the first track in `subtitleLanguages`, preferring a non-forced one.
+    - `.always`: the first match in `subtitleLanguages`, then the default track, then none.
+  - A manual selection by the user is never overridden for the rest of that session.
 
 ## Threading: VLC callbacks to the MainActor
 
 VLCKit is Objective-C. Its delegate callbacks and libvlc events arrive on threads we don't control. Some `VLCMediaPlayer` calls, such as `stop` and media replacement, block while libvlc tears down outputs.
 
-1. **The engine is an actor with its own serial executor.** `VLCPlaybackEngine` is an `actor` whose `unownedExecutor` is a private `DispatchSerialQueue`. Every `VLCMediaPlayer` access happens on that queue, never on main, so a blocking `stop` can't drop frames in the UI. The player is non-Sendable and stays confined to the actor.
-2. **Callbacks copy values and never read player state.** The delegate is a small internal `NSObject` bridge whose methods are `nonisolated`. Each callback turns its arguments into an internal Sendable `EngineEvent` enum (`.stateChanged(VLCState)`, `.timeChanged`, `.tracksChanged`, `.snapshotTaken(path)`) and yields it into an internal `AsyncStream<EngineEvent>.Continuation`. The continuation is Sendable, so this compiles under complete checking without `@unchecked`.
-3. **The actor reacts on its own executor.** One task inside the actor iterates that event stream, reads `VLCMediaPlayer` properties there, builds a `PlaybackSnapshot` and yields it to subscribers. Reading state off-queue inside the callback would race with libvlc.
-4. **The consumer makes the MainActor hop.** `PlayerModel` is `@MainActor` and iterates `engine.snapshots()` from the view's `.task {}`. Each `await` resumes on main, and leaving the screen cancels the task. Nothing calls `DispatchQueue.main.async`, and only `Sendable` value types cross isolation boundaries.
+1. **The engine is an actor with its own serial executor.** `VLCPlaybackEngine` is an `actor` whose `unownedExecutor` is a private `DispatchSerialQueue`. Every `VLCMediaPlayer` access happens on that queue, never on main, so a blocking `stop` can't drop UI frames. The non-Sendable player stays confined to the actor.
+2. **Callbacks copy values and never read player state.** An internal `NSObject` delegate bridge has `nonisolated` methods. Each callback turns its arguments into a Sendable `EngineEvent` (`.stateChanged`, `.timeChanged`, `.tracksChanged`, `.chaptersChanged`, `.frameCaptured(path)`) and yields it into an `AsyncStream<EngineEvent>.Continuation`. The continuation is Sendable, so no `@unchecked` is needed.
+3. **The actor reacts on its own executor.** A task inside the actor iterates those events, reads player properties there, builds a `PlaybackState`, and yields it to subscribers. Reading state inside the callback would race with libvlc.
+4. **The consumer makes the MainActor hop.** `PlayerModel` is `@MainActor` and iterates `engine.states()` from the view's `.task {}`. Each `await` resumes on main, and leaving the screen cancels the task. Nothing calls `DispatchQueue.main.async`, and only Sendable values cross isolation boundaries.
 
-Two VLC quirks are handled at the boundary:
-
-- **Stale times after a seek.** VLC keeps reporting the old time for a short while after a seek. While scrubbing and right after seeking, `PlayerModel` shows its local target position and ignores incoming positions until one lands near the target or a short timeout passes. Without this, the scrubber snaps back.
-- **Snapshots finish asynchronously.** VLC writes the snapshot file and confirms through the delegate. The actor keeps a `CheckedContinuation` per pending request and resumes it on `.snapshotTaken`, or with `.snapshotFailed` on timeout.
-
-Delegate method names have changed between VLCKit 4 pre-releases. The bridge is the only file that has to match them, so pin a version and check the headers when upgrading.
+VLC quirks handled at the boundary:
+- **Stale times after a seek.** VLC reports the old time briefly after a seek. While scrubbing and just after seeking, `PlayerModel` shows its target position and ignores incoming progress until a value lands near the target or a short timeout passes.
+- **Frame capture finishes asynchronously.** The actor keeps a `CheckedContinuation` per pending capture, resumes it on `.frameCaptured`, and fails it with `.captureFailed` on timeout.
+- **Delegate names change between VLCKit 4 pre-releases.** The bridge is the only file that has to match them. Pin a version and check the headers on upgrade.
 
 ## Video surface
 
 VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIView` on iOS, iPadOS, tvOS and visionOS, and an `NSView` on macOS.
 
-- **Created once, together with the player.** The `@MainActor` factory in Playback creates the drawable view and the `VLCMediaPlayer`, sets `drawable` on main, and then hands the player to the actor as a `sending` parameter. After construction, the engine never touches the view.
-- **The drawable outlives SwiftUI views.** `VideoSurface` is a `UIViewRepresentable` (or `NSViewRepresentable`) whose `makeUIView` returns a plain container and adds the session's persistent drawable as a subview. Rotation, fullscreen transitions, split-view column changes and window moves can recreate the representable, but they never destroy the drawable. If VLC's drawable is freed mid-playback, the video output is torn down and the picture goes black.
+- **Created once, together with the player.** The `@MainActor` factory creates the drawable view and the `VLCMediaPlayer`, sets `drawable` on main, then hands the player to the actor as a `sending` parameter. After that, the engine never touches the view.
+- **The drawable outlives SwiftUI views.** `VideoSurface` is a `UIViewRepresentable` (or `NSViewRepresentable`) that returns a plain container and adds the session's persistent drawable as a subview. Rotation, fullscreen, column changes and window moves can recreate the representable, but they never free the drawable. If the drawable is freed mid-playback, VLC tears down its video output and the picture goes black.
 - **Features never see VLCKit.** The player screen is generic over its surface:
 
   ```swift
@@ -143,13 +185,13 @@ VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIVie
   PlayerScreen(model: .preview) { Color.black }                  // #Preview
   ```
 
-  `PlayerScreen<Surface: View>` has no `AnyView` and no environment key. The generic stays local because `LibraryFeature` never builds a player. It calls `onOpen(item)`, and the app target constructs the player.
-- **Session lifetime belongs to the router.** The engine, model and surface are created inside the open action, not in `body`, so redraws can't spawn extra engines. They are stored in `AppRouter.presentedSession` and closed (`await engine.close()`) on dismiss. Each macOS or visionOS player window owns its own session.
-- Picture in Picture uses VLCKit 4's PiP-capable drawable. It stays inside Playback and will reach Domain as a capability flag on the snapshot when it's built.
+  There's no `AnyView` and no environment key. The generic stays local because `LibraryFeature` never builds a player: it calls `onOpen(item)` and the app target builds it.
+- **Session lifetime belongs to the router.** The engine, model and surface are created in the open action, not in `body`, so redraws can't spawn extra engines. They're stored in `AppRouter.presentedSession` and closed on dismiss. Each macOS or visionOS player window owns its own session.
+- Picture in Picture uses VLCKit 4's PiP-capable drawable. It stays inside Playback and will reach Domain as a capability flag on `PlaybackState`.
 
 ## Navigation
 
-Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app target that holds the selection, paths and presented session. Features only emit intents through closures, so the same `LibraryScreen` works under every root.
+Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app target holding selection, paths and the presented session. Features only emit intents through closures, so the same `LibraryScreen` works under every root.
 
 | Platform | Root | Player presentation |
 |---|---|---|
@@ -157,25 +199,25 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 | macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in `.commands` |
 | iPhone | `TabView`, one `NavigationStack` per tab | `fullScreenCover` |
 | tvOS | Top `TabView`, `NavigationStack` per tab | `fullScreenCover` |
-| visionOS | `NavigationSplitView` in the main window | Separate `WindowGroup`, resizable |
+| visionOS | `NavigationSplitView` in the main window | Separate resizable `WindowGroup` |
 
-- **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width. Swapping roots on rotation would throw away the stack path. On iPad, `NavigationSplitView` already collapses into a stack in compact multitasking, so no second layout is needed.
-- **Mac and visionOS players are windows** because people play several files side by side and expect to resize, full-screen and close them like documents. iPhone, iPad and tvOS present the player full screen over the root.
+- **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width, and swapping roots on rotation would throw away the stack path. On iPad, the split view already collapses into a stack in compact multitasking.
+- **Mac and visionOS players are windows** because people play several files side by side and expect to resize and close them like documents.
 - **tvOS focus:**
-  - Library shelves are `.focusSection()`s so moving up or down jumps between rows, and `defaultFocus` puts focus on the primary item.
+  - Library shelves are `.focusSection()`s, and `defaultFocus` targets the primary item.
   - In the player, transport is an overlay with `@FocusState`. `.onPlayPauseCommand` toggles playback and `.onMoveCommand` scrubs while the overlay is visible.
-  - `.onExitCommand` hides the overlay first and closes the player second, matching the system player.
-- **watchOS** is a remote. It sends commands and receives `PlaybackSnapshot`s over WatchConnectivity. The transport lives in `Data` on the phone side, and the watch app shares only Domain types.
+  - `.onExitCommand` hides the overlay first and closes the player second.
+- **watchOS** is a remote. It sends commands and receives `PlaybackState` over WatchConnectivity. The transport lives in Data on the phone side, and the watch shares only Domain types.
 
 ## Testing
 
-- Feature models: Swift Testing against `FakePlaybackEngine`. The fake records commands and the test scripts snapshot sequences, which covers scrubbing, stale-time suppression and error display without VLC.
-- Use cases: run against fakes from `DomainFakes`.
-- Repositories: an in-memory `ModelContainer`, including the record-to-entity mapping.
-- `VLCPlaybackEngine`: a thin integration test on macOS that plays a short bundled clip and checks the status sequence, seeking and track listing. This is the only test that loads VLCKit.
+- Feature models: Swift Testing against `PlaybackTesting` fakes, with scripted state sequences for scrubbing, stale-time suppression, A-B loop UI and credential prompts.
+- Use cases: resume thresholds at 29 s, 30 s, 95% and unknown duration. The throttle uses an injected clock. Track picking covers each subtitle mode, forced tracks and language aliases.
+- Repositories: an in-memory `ModelContainer`. `KeychainCredentialStore` runs on macOS against a test-only access group.
+- `VLCPlaybackEngine` and `VLCThumbnailProvider`: thin macOS integration tests with a short bundled clip that has chapters and two audio tracks. These are the only tests that load VLCKit.
 
 ## Open risks
 
-- VLCKit 4 is pre-release. visionOS slice availability and a usable SwiftPM binary target need confirming before the Playback target is created.
+- VLCKit 4 is pre-release. visionOS slice availability, a usable SwiftPM binary target, and native A-B loop support in the pinned build all need confirming before the Playback target is created.
 - Delegate signatures may change between VLCKit 4 builds. The bridge contains that churn to one file.
-- Project settings still differ from CLAUDE.md: the bundle ID is `io.Pane`, tvOS isn't added as a destination, the Swift language mode is 5, and deployment targets are 26.4 and 26.5. Fix these before the package lands, or strict concurrency won't be enforced.
+- The visionOS platform isn't installed on the development machine yet, so visionOS can't be built or verified until it is.
