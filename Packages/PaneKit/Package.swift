@@ -8,14 +8,9 @@ let swiftSettings: [SwiftSetting] = [
 
 let package = Package(
     name: "PaneKit",
-    // SwiftPM can't restrict platforms per target. watchOS is listed so Domain gets a 26 floor there;
-    // the watch app links the Domain product only, and nothing else is built or supported for watchOS.
     platforms: [
         .iOS(.v26),
         .macOS(.v26),
-        .tvOS(.v26),
-        .visionOS(.v26),
-        .watchOS(.v26),
     ],
     products: [
         .library(name: "Domain", targets: ["Domain"]),
