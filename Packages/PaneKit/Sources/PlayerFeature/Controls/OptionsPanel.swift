@@ -27,31 +27,6 @@ struct OptionsPanel: View {
                     .labelsHidden()
                 }
 
-                let audio = model.tracks.filter { $0.kind == .audio }
-                if audio.count > 1 {
-                    section("Audio") {
-                        ForEach(audio) { track in
-                            row(track.displayName, isSelected: model.selectedTrackIDs.contains(track.id)) {
-                                model.selectTrack(track)
-                            }
-                        }
-                    }
-                }
-
-                let subtitles = model.tracks.filter { $0.kind == .subtitle }
-                if !subtitles.isEmpty {
-                    section("Subtitles") {
-                        row(String(localized: "Off"), isSelected: subtitles.allSatisfy { !model.selectedTrackIDs.contains($0.id) }) {
-                            model.turnOffSubtitles()
-                        }
-                        ForEach(subtitles) { track in
-                            row(track.displayName, isSelected: model.selectedTrackIDs.contains(track.id)) {
-                                model.selectTrack(track)
-                            }
-                        }
-                    }
-                }
-
                 if !model.chapters.isEmpty {
                     section("Chapters") {
                         ForEach(model.chapters) { chapter in

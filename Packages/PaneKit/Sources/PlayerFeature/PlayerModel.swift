@@ -32,11 +32,12 @@ public final class PlayerModel {
     public private(set) var isSpeedBoosted = false
     public private(set) var brightness: Double?
     public var isMenuPresented = false {
-        didSet {
-            guard isMenuPresented != oldValue else { return }
-            isMenuPresented ? revealControls() : scheduleAutoHide()
-        }
+        didSet { presentationDidChange(from: oldValue, to: isMenuPresented) }
     }
+    public var isTrackSheetPresented = false {
+        didSet { presentationDidChange(from: oldValue, to: isTrackSheetPresented) }
+    }
+    public var subtitleImportFailed = false
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -173,6 +174,13 @@ public final class PlayerModel {
         chapters.last { $0.start <= position }
     }
 
+    public var audioTracks: [MediaTrack] { tracks.filter { $0.kind == .audio } }
+    public var subtitleTracks: [MediaTrack] { tracks.filter { $0.kind == .subtitle } }
+
+    public var areSubtitlesOff: Bool {
+        !subtitleTracks.contains { selectedTrackIDs.contains($0.id) }
+    }
+
     public func run() async {
         let states = engine.states()
         if !hasStartedLoading {
@@ -235,6 +243,17 @@ public final class PlayerModel {
     public func turnOffSubtitles() {
         manualTrackKinds.insert(.subtitle)
         Task { [engine] in await engine.deselectTrack(kind: .subtitle) }
+    }
+
+    /// Copies the file first: the importer's security scope ends long before libvlc is done reading.
+    public func addSubtitle(from url: URL) async {
+        manualTrackKinds.insert(.subtitle)
+        do {
+            let copy = try await SubtitleFile.copy(of: url)
+            try await engine.addSubtitle(from: copy)
+        } catch {
+            subtitleImportFailed = true
+        }
     }
 
     public func toggleVideoScaling() {
@@ -410,7 +429,12 @@ extension PlayerModel {
     }
 
     private var canAutoHide: Bool {
-        isPlaying && !isScrubbing && !isMenuPresented
+        isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented
+    }
+
+    private func presentationDidChange(from oldValue: Bool, to isPresented: Bool) {
+        guard isPresented != oldValue else { return }
+        isPresented ? revealControls() : scheduleAutoHide()
     }
 
     private func scheduleAutoHide() {

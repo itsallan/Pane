@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Generic over its surface so the feature never sees how video is drawn: the app passes VLC's view, previews pass a color.
 public struct PlayerScreen<Surface: View>: View {
-    private let model: PlayerModel
+    @Bindable private var model: PlayerModel
     private let onDismiss: (() -> Void)?
     private let surface: Surface
 
@@ -32,6 +32,9 @@ public struct PlayerScreen<Surface: View>: View {
         }
         .animation(reduceMotion ? .linear(duration: 0.15) : .smooth(duration: 0.3), value: model.areControlsVisible)
         .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
+        .sheet(isPresented: $model.isTrackSheetPresented) {
+            TrackSheet(model: model)
+        }
         .task { await model.run() }
         .onChange(of: scenePhase) { _, phase in
             sceneDidChange(to: phase)

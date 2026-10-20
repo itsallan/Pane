@@ -25,6 +25,7 @@ struct ControlCapsule: View {
                     HStack(spacing: 4) {
                         playPause
                         scrubber
+                        tracks
                         options
                     }
                 }
@@ -42,6 +43,7 @@ struct ControlCapsule: View {
                     scrubber
                         .padding(.horizontal, 6)
                     remaining
+                    tracks
                     options
                 }
                 .padding(6)
@@ -135,6 +137,12 @@ struct ControlCapsule: View {
         guard let duration = model.duration else { return position }
         let total = duration.formatted(.units(allowed: [.hours, .minutes, .seconds], width: .wide))
         return String(localized: "\(position) of \(total)")
+    }
+
+    private var tracks: some View {
+        TransportButton("Audio and Subtitles", systemImage: "captions.bubble") {
+            model.isTrackSheetPresented = true
+        }
     }
 
     private var options: some View {

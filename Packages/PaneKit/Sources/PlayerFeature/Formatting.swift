@@ -12,8 +12,29 @@ extension Duration {
 extension MediaTrack {
     var displayName: String {
         if let title, !title.isEmpty { return title }
-        if let language, let name = Locale.current.localizedString(forIdentifier: language) { return name }
+        if let languageName { return languageName }
         return language ?? id
+    }
+
+    // Placeholder codes like "und" (undetermined) say nothing a person can use.
+    private var languageName: String? {
+        guard let language, !["und", "mul", "zxx", "mis"].contains(language) else { return nil }
+        return Locale.current.localizedString(forIdentifier: language)
+    }
+
+    var detail: String? {
+        var parts: [String] = []
+        // VLC already writes the language into generated titles ("Track 1 - [English]").
+        if let title, !title.isEmpty, let name = languageName, !title.localizedStandardContains(name) {
+            parts.append(name)
+        }
+        if isForced {
+            parts.append(String(localized: "Forced"))
+        }
+        if isDefault {
+            parts.append(String(localized: "Default"))
+        }
+        return parts.isEmpty ? nil : parts.formatted()
     }
 }
 
