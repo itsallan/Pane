@@ -7,9 +7,18 @@ struct LibraryRow: View {
     let model: LibraryModel
     let onOpen: (MediaItem) -> Void
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    // At accessibility sizes the title needs the full width, so the poster moves above it.
+    private var layout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+            : AnyLayout(HStackLayout(spacing: 12))
+    }
+
     var body: some View {
         Button(action: open) {
-            HStack(spacing: 12) {
+            layout {
                 PosterImage(item: entry.item, model: model)
                     .frame(width: Metrics.rowPosterWidth)
                     .overlay(alignment: .bottom) {
@@ -19,7 +28,6 @@ struct LibraryRow: View {
                     }
                 VStack(alignment: .leading, spacing: 4) {
                     Text(entry.item.title)
-                        .font(.body)
                         .lineLimit(2)
                     EntryStatusText(entry: entry)
                         .font(.subheadline)

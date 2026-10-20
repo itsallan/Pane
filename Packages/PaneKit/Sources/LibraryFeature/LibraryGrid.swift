@@ -13,20 +13,10 @@ struct LibraryGrid: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 if !model.continueWatching.isEmpty, model.searchText.isEmpty {
-                    VStack(alignment: .leading, spacing: 12) {
-                        SectionHeader("Continue Watching")
-                        ContinueWatchingRow(entries: model.continueWatching, model: model, onOpen: onOpen)
-                    }
+                    ContinueWatchingSection(model: model, onOpen: onOpen)
                 }
                 if showsFolders, !model.folders.isEmpty, model.searchText.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        SectionHeader("Folders")
-                        ForEach(model.folders) { folder in
-                            FolderLink(folder: folder, model: model)
-                                .frame(minHeight: Metrics.minimumHitTarget, alignment: .leading)
-                                .padding(.horizontal, Metrics.edgeInset)
-                        }
-                    }
+                    FolderSection(model: model)
                 }
                 VStack(alignment: .leading, spacing: 12) {
                     if model.scope == .all {
