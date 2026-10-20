@@ -30,7 +30,7 @@ Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so mod
 **Domain** (Foundation only)
 - Entities: `MediaItem`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `PlaybackError`.
 - Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`.
-- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`.
+- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
 
 **Playback** (the only module that imports VLCKit, through `@preconcurrency import VLCKit`)
 - Public: `VLCPlaybackEngine`, `VLCThumbnailProvider`, `VLCNetworkBrowser`, `VideoSurface: View`, and a `@MainActor` factory that returns the engine and its surface together.
@@ -152,8 +152,8 @@ Errors: typed throws only where the caller can respond on the spot (an unresolva
   - Audio: the first track matching `TrackPreferences.audioLanguages` in order. Otherwise the track the container marks as default. Otherwise the first track.
   - Subtitles, depending on `TrackPreferences.subtitleMode`:
     - `.off`: none, except forced tracks in the chosen audio language.
-    - `.auto`: the same as `.off` when the audio already matches a preferred language. Otherwise the first track in `subtitleLanguages`, preferring a non-forced one.
-    - `.always`: the first match in `subtitleLanguages`, then the default track, then none.
+    - `.auto`: the same as `.off` when the audio already matches a preferred language. Otherwise the first track in `subtitleLanguages`, preferring a non-forced one, then the `.off` choice.
+    - `.always`: the first match in `subtitleLanguages` (non-forced preferred), then the default track, then the `.off` choice.
   - A manual selection by the user is never overridden for the rest of that session.
 
 ## Threading: VLC callbacks to the MainActor
