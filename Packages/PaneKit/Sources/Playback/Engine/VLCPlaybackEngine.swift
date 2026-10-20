@@ -35,6 +35,8 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private var defaultTrackIDs: Set<MediaTrack.ID> = []
     private var isTrackSelectionManual = false
     private var pendingCaptures: [PendingCapture] = []
+    private var pendingSlave: (title: String, existingIDs: Set<MediaTrack.ID>)?
+    private var slaveTitles: [MediaTrack.ID: String] = [:]
     private var isClosed = false
 
     init(drawable: VideoDrawable?) {
@@ -101,6 +103,8 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         isNativeLoop = false
         defaultTrackIDs = []
         isTrackSelectionManual = false
+        pendingSlave = nil
+        slaveTitles = [:]
         state = PlaybackState(status: .opening, volume: state.volume, videoScaling: state.videoScaling)
 
         // Swapping the media under a playing player sends no state change at all: no stop, no opening.
@@ -231,9 +235,18 @@ public actor VLCPlaybackEngine: PlaybackEngine {
             throw .unreadableSubtitle(url)
         }
         isTrackSelectionManual = true
+        let existingIDs = Set(player.textTracks.map(\.trackId))
         guard player.addPlaybackSlave(url, type: .subtitle, enforce: true) == 0 else {
             throw .unreadableSubtitle(url)
         }
+        pendingSlave = (url.deletingPathExtension().lastPathComponent, existingIDs)
+        // A slave added while paused restarts decoding but leaves the player reporting paused, with no time updates.
+        // It's playing either way, so make the state say so.
+        if vlcState == .paused {
+            player.play()
+        }
+        refreshTracks()
+        publish()
     }
 
     public func setSubtitleDelay(_ delay: Duration) {
@@ -398,17 +411,40 @@ private extension VLCPlaybackEngine {
     }
 
     func refreshTracks() {
+        let addedSlave = selectAddedSlave()
         let tracks = allTracks()
-        let selected = Set(tracks.filter(\.isSelected).map(\.trackId))
+        var selected = Set(tracks.filter(\.isSelected).map(\.trackId))
+        if let addedSlave {
+            // The selection lands a moment later; show it now, as selectTrack does.
+            selected.subtract(player.textTracks.map(\.trackId))
+            selected.insert(addedSlave)
+        }
         // libvlc doesn't expose the container's default flag, but before anyone picks a track,
         // VLC's own selection is exactly the tracks the container marked as default.
         if !isTrackSelectionManual {
             defaultTrackIDs = selected
         }
-        state.tracks = tracks.compactMap { MediaTrack($0, isDefault: defaultTrackIDs.contains($0.trackId)) }
+        state.tracks = tracks.compactMap { track in
+            var mapped = MediaTrack(track, isDefault: defaultTrackIDs.contains(track.trackId))
+            if let title = slaveTitles[track.trackId] {
+                mapped?.title = title
+            }
+            return mapped
+        }
         state.selectedTrackIDs = selected
         let size = player.videoSize
         state.videoSize = size.width > 0 && size.height > 0 ? VideoSize(width: Int(size.width), height: Int(size.height)) : nil
+    }
+
+    // In 4.0.0-a25 addPlaybackSlave's enforce flag doesn't select the new track, and libvlc names it "Track N".
+    func selectAddedSlave() -> MediaTrack.ID? {
+        guard let pendingSlave, let added = player.textTracks.first(where: { !pendingSlave.existingIDs.contains($0.trackId) }) else {
+            return nil
+        }
+        self.pendingSlave = nil
+        slaveTitles[added.trackId] = pendingSlave.title
+        added.isSelectedExclusively = true
+        return added.trackId
     }
 
     func refreshChapters() {
