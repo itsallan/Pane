@@ -10,7 +10,7 @@ import SwiftUI
 struct ContentView: View {
     var body: some View {
         #if DEBUG
-        PlaybackDebugView()
+        SampleLibraryView()
         #else
         VStack {
             Image(systemName: "globe")
