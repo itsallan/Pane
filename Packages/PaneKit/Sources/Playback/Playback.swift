@@ -1,1 +1,1 @@
-import Foundation
+@preconcurrency import VLCKit

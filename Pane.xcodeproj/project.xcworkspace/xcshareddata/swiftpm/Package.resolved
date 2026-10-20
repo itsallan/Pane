@@ -1,0 +1,15 @@
+{
+  "originHash" : "59ee37b3ecd91e47f05097b1f65bd03269111eaefd3bc980888d82d92eb430df",
+  "pins" : [
+    {
+      "identity" : "vlckit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://code.videolan.org/videolan/VLCKit.git",
+      "state" : {
+        "revision" : "8f5ce02f09a7da5d061a24ddac3cb432f2a9b332",
+        "version" : "4.0.0-a25"
+      }
+    }
+  ],
+  "version" : 3
+}

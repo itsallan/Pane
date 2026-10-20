@@ -27,9 +27,17 @@ let package = Package(
         .library(name: "SettingsFeature", targets: ["SettingsFeature"]),
         .library(name: "PlaybackTesting", targets: ["PlaybackTesting"]),
     ],
+    dependencies: [
+        // VLCKit 4 is pre-release and its delegate API changes between builds, so pin exactly.
+        .package(url: "https://code.videolan.org/videolan/VLCKit.git", exact: "4.0.0-a25"),
+    ],
     targets: [
         .target(name: "Domain", swiftSettings: swiftSettings),
-        .target(name: "Playback", dependencies: ["Domain"], swiftSettings: swiftSettings),
+        .target(
+            name: "Playback",
+            dependencies: ["Domain", .product(name: "VLCKit", package: "VLCKit")],
+            swiftSettings: swiftSettings
+        ),
         .target(name: "Data", dependencies: ["Domain"], swiftSettings: swiftSettings),
         .target(name: "DesignSystem", swiftSettings: swiftSettings),
         .target(name: "PlayerFeature", dependencies: ["Domain", "DesignSystem"], swiftSettings: swiftSettings),
