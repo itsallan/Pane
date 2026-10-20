@@ -109,7 +109,7 @@ public struct PlaybackState: Sendable, Equatable {
     public var chapters: [Chapter]     // id, title, start
     public var loop: ClosedRange<Duration>?
     public var subtitleDelay: Duration
-    public var isSeekable: Bool, videoSize: CGSize?
+    public var isSeekable: Bool, videoSize: VideoSize?   // pixel dimensions
 }
 ```
 
