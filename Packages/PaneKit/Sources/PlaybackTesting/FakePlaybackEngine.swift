@@ -47,15 +47,19 @@ public final class FakePlaybackEngine: PlaybackEngine {
 
     private let storage: Mutex<Storage>
     private let capturedFrameURL: URL
+    private let landsSeeks: Bool
 
     /// `stateOnLoad` replaces the state when `load` succeeds, which is how a test makes tracks and chapters appear.
+    /// With `landsSeeks` off, seeks are only recorded, so a test can script the stale times VLC reports before one lands.
     public init(
         state: PlaybackState = PlaybackState(),
         stateOnLoad: PlaybackState? = nil,
         failures: Failures = Failures(),
+        landsSeeks: Bool = true,
         capturedFrameURL: URL = URL(filePath: "/tmp/pane-fake-frame.jpg")
     ) {
         storage = Mutex(Storage(state: state, failures: failures, stateOnLoad: stateOnLoad))
+        self.landsSeeks = landsSeeks
         self.capturedFrameURL = capturedFrameURL
     }
 
@@ -118,11 +122,17 @@ public final class FakePlaybackEngine: PlaybackEngine {
     }
 
     public func seek(to position: Duration, precision: SeekPrecision) async {
-        record(.seek(to: position, precision: precision)) { $0.progress.position = $0.clamped(position) }
+        record(.seek(to: position, precision: precision)) { state in
+            guard landsSeeks else { return }
+            state.progress.position = state.clamped(position)
+        }
     }
 
     public func seek(by offset: Duration) async {
-        record(.seekBy(offset)) { $0.progress.position = $0.clamped($0.progress.position + offset) }
+        record(.seekBy(offset)) { state in
+            guard landsSeeks else { return }
+            state.progress.position = state.clamped(state.progress.position + offset)
+        }
     }
 
     public func seek(toChapter id: Chapter.ID) async {
