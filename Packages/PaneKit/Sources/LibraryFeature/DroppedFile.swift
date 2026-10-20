@@ -7,6 +7,8 @@ enum DroppedFile {
 
     /// The original file when the source app allows opening it in place, otherwise a copy in Documents,
     /// because a copy handed to the drop only lives until the callback returns.
+    // NSItemProvider isn't Sendable, so it stays on the main actor; only the resulting URL crosses back.
+    @MainActor
     static func load(from provider: NSItemProvider) async -> URL? {
         guard let type = provider.registeredContentTypes.first(where: { type in acceptedTypes.contains { type.conforms(to: $0) } }) else {
             return nil

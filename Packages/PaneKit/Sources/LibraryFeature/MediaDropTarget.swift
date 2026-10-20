@@ -5,6 +5,7 @@ import UniformTypeIdentifiers
 struct MediaDropTarget: ViewModifier {
     let isEnabled: Bool
     let onDrop: ([URL]) -> Void
+    let onFailure: () -> Void
 
     @State private var isTargeted = false
 
@@ -46,7 +47,12 @@ struct MediaDropTarget: ViewModifier {
                     urls.append(url)
                 }
             }
-            onDrop(urls)
+            if urls.count < providers.count {
+                onFailure()
+            }
+            if !urls.isEmpty {
+                onDrop(urls)
+            }
         }
         return true
     }

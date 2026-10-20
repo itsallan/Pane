@@ -111,6 +111,10 @@ public final class LibraryModel {
         }
     }
 
+    func dropFailed() {
+        failure = .importFailed
+    }
+
     public func markWatched(_ entry: LibraryEntry) async {
         await update { [progress] in try await progress.markWatched(entry.id) }
     }

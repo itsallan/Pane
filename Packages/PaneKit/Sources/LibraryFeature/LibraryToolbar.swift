@@ -5,18 +5,20 @@ struct LibraryToolbar: ToolbarContent {
     let onImport: (ImportKind) -> Void
 
     var body: some ToolbarContent {
-        ToolbarItem(placement: .primaryAction) {
-            Menu("Sort and Filter", systemImage: "line.3.horizontal.decrease") {
-                if model.canSort {
-                    Picker("Sort By", selection: $model.sortOrder) {
-                        ForEach(LibrarySortOrder.allCases, id: \.self) { order in
-                            Text(order.label)
+        if !model.isEmpty {
+            ToolbarItem(placement: .primaryAction) {
+                Menu("Sort and Filter", systemImage: "line.3.horizontal.decrease") {
+                    if model.canSort {
+                        Picker("Sort By", selection: $model.sortOrder) {
+                            ForEach(LibrarySortOrder.allCases, id: \.self) { order in
+                                Text(order.label)
+                            }
                         }
                     }
-                }
-                Picker("Show", selection: $model.filter) {
-                    ForEach(LibraryFilter.allCases, id: \.self) { filter in
-                        Text(filter.label)
+                    Picker("Show", selection: $model.filter) {
+                        ForEach(LibraryFilter.allCases, id: \.self) { filter in
+                            Text(filter.label)
+                        }
                     }
                 }
             }

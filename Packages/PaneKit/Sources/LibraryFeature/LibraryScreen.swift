@@ -46,7 +46,7 @@ public struct LibraryScreen: View {
             allowsMultipleSelection: importKind == .files,
             onCompletion: importFiles
         )
-        .modifier(MediaDropTarget(isEnabled: model.canImport, onDrop: importDropped))
+        .modifier(MediaDropTarget(isEnabled: model.canImport, onDrop: importDropped, onFailure: model.dropFailed))
         .alert(
             Text(model.failure?.title ?? ""),
             isPresented: $model.isShowingFailure,
