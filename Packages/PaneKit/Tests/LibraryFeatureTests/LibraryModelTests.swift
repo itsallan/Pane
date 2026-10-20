@@ -147,4 +147,14 @@ struct LibraryModelTests {
 
         #expect(await thumbnails.requests.map(\.position) == [.seconds(60), .seconds(120)])
     }
+
+    @Test func failedPostersAreNotRequestedAgain() async {
+        let thumbnails = FakeThumbnailProvider(failure: .thumbnailFailed)
+        let (model, _, _) = makeModel(thumbnails: thumbnails)
+
+        #expect(await model.poster(for: alpha) == nil)
+        #expect(await model.poster(for: alpha) == nil)
+
+        #expect(await thumbnails.requests.count == 1)
+    }
 }

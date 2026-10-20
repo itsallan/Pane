@@ -28,7 +28,7 @@ struct PosterImage: View {
             .aspectRatio(Metrics.posterAspectRatio, contentMode: .fit)
             .clipShape(.rect(cornerRadius: Metrics.posterCornerRadius))
             .accessibilityHidden(true)
-            .task(id: item.id) {
+            .task(id: item.source) {
                 url = await model.poster(for: item)
             }
     }

@@ -34,7 +34,8 @@ public final class LibraryModel {
     private let thumbnails: any ThumbnailProvider
     private let loadLibrary: LoadLibrary
     private var scopedEntries: [LibraryEntry] = []
-    @ObservationIgnored private var posters: [MediaItem.ID: URL] = [:]
+    @ObservationIgnored private var posters: [MediaSource: URL] = [:]
+    @ObservationIgnored private var failedPosters: Set<MediaSource> = []
 
     public init(
         scope: LibraryScope = .all,
@@ -136,15 +137,23 @@ public final class LibraryModel {
 
     /// A frame from early in the video, generated once per item and kept for the life of the model.
     public func poster(for item: MediaItem) async -> URL? {
-        if let cached = posters[item.id] {
+        if let cached = posters[item.source] {
             return cached
         }
+        // Rows come and go while scrolling; an unreachable stream or undecodable file would be asked again every time.
+        guard !failedPosters.contains(item.source) else { return nil }
         let position = item.duration.map { min($0 * 0.1, .seconds(120)) } ?? .seconds(20)
-        guard let url = try? await thumbnails.thumbnail(for: item.source, at: position, maxPixelSize: Self.posterPixelSize) else {
+        do {
+            let url = try await thumbnails.thumbnail(for: item.source, at: position, maxPixelSize: Self.posterPixelSize)
+            posters[item.source] = url
+            return url
+        } catch {
+            // A row that scrolled away cancels its request, which isn't a verdict on the file.
+            if !Task.isCancelled {
+                failedPosters.insert(item.source)
+            }
             return nil
         }
-        posters[item.id] = url
-        return url
     }
 
     private func update(_ change: @Sendable () async throws -> Void) async {
