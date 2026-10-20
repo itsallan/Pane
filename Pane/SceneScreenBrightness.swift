@@ -10,11 +10,10 @@ final class SceneScreenBrightness: ScreenBrightness {
         set { screen?.brightness = CGFloat(newValue) }
     }
 
+    // Restoring happens while the scene is resigning active or already backgrounded, so fall back to any window scene.
     private var screen: UIScreen? {
-        UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first { $0.activationState == .foregroundActive }?
-            .screen
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        return (scenes.first { $0.activationState == .foregroundActive } ?? scenes.first)?.screen
     }
 }
 #endif

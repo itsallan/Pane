@@ -198,12 +198,14 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 
 | Platform | Root | Player presentation |
 |---|---|---|
-| iPad | `NavigationSplitView`: sources sidebar (Library, Recents, Network), item list, detail | `fullScreenCover` |
+| iPad | `NavigationSplitView`: sources sidebar (Library, Recents, imported folders, later Network), library grid as detail | `fullScreenCover` |
 | macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in `.commands` |
-| iPhone | `TabView`, one `NavigationStack` per tab | `fullScreenCover` |
+| iPhone | `TabView` (Library, Recents), one `NavigationStack` per tab; folders are listed inside Library | `fullScreenCover` |
 
 - **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width, and swapping roots on rotation would throw away the stack path. On iPad, the split view already collapses into a stack in compact multitasking.
 - **Mac players are windows** because people play several files side by side and expect to resize and close them like documents.
+- **Files open in place.** The app declares video document types with `LSSupportsOpeningDocumentsInPlace`, so Files and Finder hand over the original URL. `AppRouter` imports it through `MediaImporter` (which returns the existing item for a file already in the library) and plays it.
+- **Library models live in the router**, one per scope, so switching sidebar items or tabs keeps each scope's sort, filter and posters. Closing a player bumps `AppDependencies.libraryRevision` and every window reloads.
 
 ## Testing
 
