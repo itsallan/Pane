@@ -25,6 +25,8 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private var vlcState = VLCMediaPlayerState.stopped
     private var bufferFill = 1.0
     private var length: Duration?
+    private var isTimeTrusted = false
+    private var lastUntrustedTime: Duration?
     private var failure: PlaybackError?
     private var isInputOpen = false
     private var hasEnded = false
@@ -93,6 +95,8 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         hasEnded = false
         bufferFill = 1
         length = nil
+        isTimeTrusted = false
+        lastUntrustedTime = nil
         pendingSeek = nil
         isNativeLoop = false
         defaultTrackIDs = []
@@ -375,8 +379,22 @@ private extension VLCPlaybackEngine {
     }
 
     func refreshProgress() {
-        let position = player.time.duration ?? state.progress.position
-        state.progress = PlaybackProgress(position: position, duration: length)
+        guard let time = player.time.duration else {
+            state.progress.duration = length
+            return
+        }
+        // While an HLS stream opens, VLC reports a time far into the stream (around 1:12:09) with length 0.
+        // Only trust the time once the length is known, or once playback moves it forward from the last report.
+        if !isTimeTrusted {
+            let hasAdvanced = vlcState == .playing && lastUntrustedTime.map { time > $0 } == true
+            guard length != nil || hasAdvanced else {
+                lastUntrustedTime = time
+                state.progress.duration = length
+                return
+            }
+            isTimeTrusted = true
+        }
+        state.progress = PlaybackProgress(position: time, duration: length)
     }
 
     func refreshTracks() {
