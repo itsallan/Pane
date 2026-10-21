@@ -39,8 +39,11 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private var slaveTitles: [MediaTrack.ID: String] = [:]
     private var isClosed = false
 
-    init(drawable: VideoDrawable?) {
-        player = VLCMediaPlayer()
+    init(drawable: VideoDrawable?, subtitleStyle: SubtitleStyle = SubtitleStyle()) {
+        let options = subtitleStyle.libraryOptions
+        // initWithOptions creates a private libvlc instance, which costs memory; only pay for it when the style needs one.
+        player = options.isEmpty ? VLCMediaPlayer() : VLCMediaPlayer(options: options)
+        player.currentSubTitleFontScale = subtitleStyle.fontScale
         // VLCKit interpolates time on a main run loop timer that defaults to 1 s; 4 Hz keeps the scrubber smooth.
         player.timeChangeUpdateInterval = 0.25
         // The delegate is weak; the actor keeps the bridge alive.
@@ -255,6 +258,10 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         publish()
     }
 
+    public func setSubtitleStyle(_ style: SubtitleStyle) {
+        player.currentSubTitleFontScale = style.fontScale
+    }
+
     public func captureFrame() async throws(PlaybackError) -> URL {
         // saveVideoSnapshot raises an Objective-C exception without a video output, which Swift can't catch.
         guard player.hasVideoOut, !isClosed else { throw .captureFailed }
@@ -296,9 +303,9 @@ public actor VLCPlaybackEngine: PlaybackEngine {
 extension VLCPlaybackEngine {
     /// Creates the engine together with the view VLC renders into. Hand the view to `VideoSurface`.
     @MainActor
-    public static func makeWithSurface() -> (engine: VLCPlaybackEngine, drawable: VideoDrawable) {
+    public static func makeWithSurface(subtitleStyle: SubtitleStyle = SubtitleStyle()) -> (engine: VLCPlaybackEngine, drawable: VideoDrawable) {
         let drawable = VideoDrawable()
-        return (VLCPlaybackEngine(drawable: drawable), drawable)
+        return (VLCPlaybackEngine(drawable: drawable, subtitleStyle: subtitleStyle), drawable)
     }
 }
 

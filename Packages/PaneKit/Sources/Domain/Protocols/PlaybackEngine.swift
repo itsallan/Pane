@@ -23,6 +23,8 @@ public protocol PlaybackEngine: Sendable {
     func deselectTrack(kind: MediaTrack.Kind) async
     func addSubtitle(from url: URL) async throws(PlaybackError)
     func setSubtitleDelay(_ delay: Duration) async
+    /// The size changes at once; background and position may only take effect from the next engine.
+    func setSubtitleStyle(_ style: SubtitleStyle) async
     /// Returns a file URL in Caches.
     func captureFrame() async throws(PlaybackError) -> URL
     func close() async

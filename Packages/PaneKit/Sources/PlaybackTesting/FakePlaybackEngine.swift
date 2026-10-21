@@ -21,6 +21,7 @@ public final class FakePlaybackEngine: PlaybackEngine {
         case deselectTrack(MediaTrack.Kind)
         case addSubtitle(URL)
         case setSubtitleDelay(Duration)
+        case setSubtitleStyle(SubtitleStyle)
         case captureFrame
         case close
     }
@@ -203,6 +204,10 @@ public final class FakePlaybackEngine: PlaybackEngine {
 
     public func setSubtitleDelay(_ delay: Duration) async {
         record(.setSubtitleDelay(delay)) { $0.subtitleDelay = delay }
+    }
+
+    public func setSubtitleStyle(_ style: SubtitleStyle) async {
+        record(.setSubtitleStyle(style)) { _ in }
     }
 
     public func captureFrame() async throws(PlaybackError) -> URL {

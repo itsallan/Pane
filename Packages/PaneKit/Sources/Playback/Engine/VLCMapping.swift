@@ -40,6 +40,35 @@ extension Chapter {
     }
 }
 
+extension SubtitleStyle {
+    /// libvlc's text scale, where 1 is its default size.
+    var fontScale: Float {
+        switch size {
+        case .small: 0.75
+        case .medium: 1
+        case .large: 1.3
+        case .extraLarge: 1.6
+        }
+    }
+
+    // freetype and the subpicture unit read these when a video output starts and never again,
+    // so they can only be set on the libvlc instance a player is created with.
+    var libraryOptions: [String] {
+        var options: [String] = []
+        switch background {
+        case .none: break
+        case .translucent: options += ["--freetype-background-opacity=128", "--freetype-background-color=0"]
+        case .solid: options += ["--freetype-background-opacity=255", "--freetype-background-color=0"]
+        }
+        switch position {
+        case .bottom: break
+        case .raised: options.append("--sub-margin=80")
+        case .high: options.append("--sub-margin=200")
+        }
+        return options
+    }
+}
+
 extension VLCTime {
     var duration: Duration? {
         guard let value else { return nil }

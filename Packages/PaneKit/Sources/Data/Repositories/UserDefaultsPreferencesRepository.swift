@@ -4,6 +4,7 @@ import Foundation
 /// Until Settings exists, nothing saves preferences, so the system's preferred languages decide.
 public struct UserDefaultsPreferencesRepository: PreferencesRepository {
     private static let key = "trackPreferences"
+    private static let styleKey = "subtitleStyle"
 
     // UserDefaults isn't Sendable, so keep the suite name and look the store up per call.
     private let suiteName: String?
@@ -28,6 +29,16 @@ public struct UserDefaultsPreferencesRepository: PreferencesRepository {
 
     public func save(_ preferences: TrackPreferences) async throws {
         defaults.set(try JSONEncoder().encode(StoredPreferences(preferences)), forKey: Self.key)
+    }
+
+    public func subtitleStyle() async throws -> SubtitleStyle {
+        guard let data = defaults.data(forKey: Self.styleKey) else { return SubtitleStyle() }
+        // A style saved by a newer version with a case this one doesn't know falls back to the default.
+        return (try? JSONDecoder().decode(SubtitleStyle.self, from: data)) ?? SubtitleStyle()
+    }
+
+    public func save(_ style: SubtitleStyle) async throws {
+        defaults.set(try JSONEncoder().encode(style), forKey: Self.styleKey)
     }
 }
 

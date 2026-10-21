@@ -28,7 +28,7 @@ Decisions made before the first line of code, and why. When code disagrees with 
 Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
 
 **Domain** (Foundation only)
-- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `PlaybackError`.
+- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `SubtitleStyle`, `PlaybackError`.
 - Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`, `MediaImporter`.
 - `MediaImporter` exists so LibraryFeature can add files and folders without seeing how bookmarks are made; Data implements it.
 - Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`, `ParseSubtitleCues`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
@@ -97,6 +97,7 @@ public protocol PlaybackEngine: Sendable {
     func deselectTrack(kind: MediaTrack.Kind) async
     func addSubtitle(from url: URL) async throws(PlaybackError)
     func setSubtitleDelay(_ delay: Duration) async
+    func setSubtitleStyle(_ style: SubtitleStyle) async   // size at once; background and position from the next engine
     func captureFrame() async throws(PlaybackError) -> URL
     func close() async
 }
@@ -121,6 +122,7 @@ public struct PlaybackState: Sendable, Equatable {
 - **Frame step is on the engine.** It's a decoder operation (VLC's next-frame); nothing in the feature can emulate it. It steps forward only, as VLC does.
 - **The A-B loop is on the engine, with state in the feature.** A loop in `PlayerModel` would watch position ticks (about 4 Hz) and overshoot B by up to 250 ms each pass. The engine uses libvlc's native A-B loop, or checks the time on its own executor if that isn't available. `PlayerModel` only owns the UI for setting A and B.
 - **Video scaling is on the engine.** VLC crops and scales inside its video output, the same on every platform. A SwiftUI `scaleEffect` on the surface would stretch the layer and break subtitles, which VLC renders into the same frame. Pinch-to-fill is a gesture in `PlayerScreen` that calls `setVideoScaling(.fill)`.
+- **Subtitle style is split by when libvlc reads it.** Text scale is a player property and changes live. Background and margin are freetype and subpicture options that libvlc reads once, when a video output starts, from the libvlc instance. So `makeWithSurface(subtitleStyle:)` builds the player on a private instance carrying those options, and a change waits for the next player. The feature previews all three over the paused frame and says which ones wait.
 - **Thumbnails are a separate protocol, `ThumbnailProvider`.** `func thumbnail(for: MediaSource, at: Duration, maxPixelSize: Int) async throws(PlaybackError) -> URL`.
   - It is separate from the engine because it has a different lifecycle (Library uses it for posters too) and has to run on its own VLC media instance so it never disturbs playback.
   - `VLCThumbnailProvider` wraps VLC's thumbnailer, rounds requests down to 5-second buckets, and caches JPEGs on disk under Caches, keyed by source and bucket. An in-memory index sits in the actor.
