@@ -7,6 +7,7 @@ struct OptionsPanel: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 SpeedSection(model: model)
+                VolumeSection(model: model)
                 if model.isSeekable {
                     LoopSection(loop: model.loop)
                 }

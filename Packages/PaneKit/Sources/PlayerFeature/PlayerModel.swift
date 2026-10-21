@@ -418,6 +418,12 @@ extension PlayerModel {
         Task { [engine] in await engine.setVolume(level) }
     }
 
+    /// For sliders; the same as `setVolume(_:)`.
+    public var volumeLevel: Double {
+        get { volume }
+        set { setVolume(newValue) }
+    }
+
     public func endVolumeAdjustment() {
         isAdjustingVolume = false
     }
