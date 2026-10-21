@@ -28,10 +28,10 @@ Decisions made before the first line of code, and why. When code disagrees with 
 Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
 
 **Domain** (Foundation only)
-- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `PlaybackError`.
+- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `PlaybackError`.
 - Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`, `MediaImporter`.
 - `MediaImporter` exists so LibraryFeature can add files and folders without seeing how bookmarks are made; Data implements it.
-- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
+- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`, `ParseSubtitleCues`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
 
 **Playback** (the only module that imports VLCKit, through `@preconcurrency import VLCKit`)
 - Public: `VLCPlaybackEngine`, `VLCThumbnailProvider`, `VLCNetworkBrowser`, `VideoSurface: View`, and a `@MainActor` factory that returns the engine and its surface together.
