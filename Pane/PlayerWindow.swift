@@ -48,7 +48,12 @@ struct PlayerWindow: View {
     }
 
     private func openSession() async {
-        guard session == nil, let itemID, let item = try? await dependencies.library.item(withID: itemID) else { return }
+        guard session == nil else { return }
+        guard let itemID, let item = try? await dependencies.library.item(withID: itemID) else {
+            // Nothing to play, for instance an item removed from the library while its window was closed.
+            dismiss()
+            return
+        }
         await waitForTurn()
         guard session == nil, !Task.isCancelled else { return }
         session = PlayerSession(item: item, dependencies: dependencies)

@@ -23,6 +23,8 @@ struct PaneApp: App {
             PlayerWindow(itemID: itemID, dependencies: dependencies)
         }
         .defaultSize(width: 960, height: 540)
+        // Restored player windows come back without their item ID, as empty black windows.
+        .restorationBehavior(.disabled)
         .handlesExternalEvents(matching: [])
 
         Window("Open URL", id: OpenURLWindow.id) {
