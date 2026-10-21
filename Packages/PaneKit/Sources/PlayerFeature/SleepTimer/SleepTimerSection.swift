@@ -10,7 +10,8 @@ struct SleepTimerSection: View {
                 Picker("Sleep Timer", selection: $timer.setting) {
                     Text("Off").tag(SleepTimer.Setting?.none)
                     ForEach(SleepTimer.presets, id: \.self) { minutes in
-                        Text("\(minutes) min").tag(SleepTimer.Setting?.some(.minutes(minutes)))
+                        Text(Duration.seconds(minutes * 60), format: .units(allowed: [.hours, .minutes], width: .abbreviated))
+                            .tag(SleepTimer.Setting?.some(.minutes(minutes)))
                     }
                     Text("End of This Video").tag(SleepTimer.Setting?.some(.endOfItem))
                 }

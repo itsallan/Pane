@@ -11,13 +11,13 @@ struct LoopBadge: View {
             Label("\(range.lowerBound.timecode)–\(range.upperBound.timecode)", systemImage: "repeat")
                 .font(.indicatorValue)
                 .padding(.leading, 14)
+                .accessibilityLabel("A-B loop from \(range.lowerBound.timecode) to \(range.upperBound.timecode)")
             Button("Clear A-B Loop", systemImage: "xmark", action: onClear)
                 .labelStyle(.iconOnly)
                 .frame(width: Metrics.minimumHitTarget, height: Metrics.minimumHitTarget)
                 .contentShape(.circle)
         }
         .glassEffect(.regular.interactive(), in: .capsule)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("A-B loop from \(range.lowerBound.timecode) to \(range.upperBound.timecode)")
+        .accessibilityElement(children: .contain)
     }
 }

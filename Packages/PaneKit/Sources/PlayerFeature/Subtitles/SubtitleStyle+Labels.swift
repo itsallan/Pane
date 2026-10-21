@@ -11,6 +11,7 @@ extension SubtitleStyle.Size {
         }
     }
 
+    // Mirrors the text scale the engine gives libvlc, so the preview line matches what VLC draws.
     var previewScale: Double {
         switch self {
         case .small: 0.75

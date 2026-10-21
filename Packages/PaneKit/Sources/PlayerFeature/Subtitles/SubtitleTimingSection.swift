@@ -18,9 +18,11 @@ struct SubtitleTimingSection: View {
         } header: {
             Text("Timing")
         } footer: {
-            Text(sync.canSyncByEar
-                ? "Tap when you hear a line, then pick that line from the file."
-                : "Sync by ear works with subtitle files you add.")
+            if sync.canSyncByEar {
+                Text("Tap when you hear a line, then pick that line from the file.")
+            } else {
+                Text("Sync by ear works with subtitle files you add.")
+            }
         }
     }
 

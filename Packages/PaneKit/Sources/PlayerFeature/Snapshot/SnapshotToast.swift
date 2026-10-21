@@ -10,10 +10,15 @@ struct SnapshotToast: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
             .glassEffect(.regular, in: .capsule)
-            .accessibilityAddTraits(.isStaticText)
+            .onAppear(perform: announce)
     }
 
-    private var title: LocalizedStringKey {
+    // It fades out on its own, so VoiceOver users would otherwise never hear how the save went.
+    private func announce() {
+        AccessibilityNotification.Announcement(String(localized: title)).post()
+    }
+
+    private var title: LocalizedStringResource {
         switch outcome {
         case .saved: "Saved to Photos"
         case .accessDenied: "Allow Pane to add photos in Settings"
