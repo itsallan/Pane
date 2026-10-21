@@ -1,17 +1,30 @@
+import DesignSystem
 import SwiftUI
 
 struct SpeedSection: View {
     @Bindable var model: PlayerModel
 
-    private static let rates = [0.5, 0.75, 1, 1.25, 1.5, 2]
-
     var body: some View {
         OptionsSection(title: "Speed") {
-            Picker("Speed", selection: $model.speed) {
-                ForEach(Self.rates, id: \.self) { Text($0.rateLabel).tag($0) }
+            HStack {
+                Slider(value: $model.speed, in: PlayerModel.rates, step: 0.05) {
+                    Text("Speed")
+                } minimumValueLabel: {
+                    Text(PlayerModel.rates.lowerBound.rateLabel)
+                } maximumValueLabel: {
+                    Text(PlayerModel.rates.upperBound.rateLabel)
+                }
+                .accessibilityValue(model.speed.rateLabel)
+                Text(model.speed.rateLabel)
+                    .font(.indicatorValue)
+                    .frame(minWidth: 52, alignment: .trailing)
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            Button("Normal Speed", action: resetSpeed)
+                .disabled(model.speed == 1)
         }
+    }
+
+    private func resetSpeed() {
+        model.speed = 1
     }
 }

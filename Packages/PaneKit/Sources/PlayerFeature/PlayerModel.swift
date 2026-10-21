@@ -10,6 +10,7 @@ public final class PlayerModel {
     static let seekTolerance = Duration.seconds(1)
     static let seekTimeout = Duration.seconds(2)
     static let boostedRate = 2.0
+    public static let rates = 0.5...3.0
     static let thumbnailPixelSize = 320
 
     public let title: String?
@@ -258,6 +259,7 @@ public final class PlayerModel {
     }
 
     public func setRate(_ rate: Double) {
+        let rate = min(max(rate, Self.rates.lowerBound), Self.rates.upperBound)
         isSpeedBoosted = false
         self.rate = rate
         Task { [engine] in await engine.setRate(rate) }

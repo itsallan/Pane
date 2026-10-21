@@ -39,6 +39,8 @@ struct MediaLocation: Sendable {
     func makeMedia() -> VLCMedia? {
         guard let media = VLCMedia(url: url) else { return nil }
         media.addOptions(MediaOptions.options(isRemote: isRemote))
+        // scaletempo keeps the pitch at any rate. It's libvlc's default; the speed control depends on it, so say so.
+        media.addOption(":audio-time-stretch")
         return media
     }
 }
