@@ -5,5 +5,5 @@ extension UTType {
     static let matroska = UTType(importedAs: "org.matroska.mkv", conformingTo: .movie)
     static let webM = UTType(importedAs: "org.webmproject.webm", conformingTo: .movie)
 
-    static let playableMedia: [UTType] = [.audiovisualContent, .matroska, .webM]
+    public static let playableMedia: [UTType] = [.audiovisualContent, .matroska, .webM]
 }

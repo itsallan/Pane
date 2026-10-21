@@ -1,5 +1,6 @@
 import Data
 import Domain
+import Foundation
 import Observation
 import Playback
 import SwiftData
@@ -64,6 +65,18 @@ final class AppDependencies {
     func saveSubtitleStyle(_ style: SubtitleStyle) async {
         subtitleStyle = style
         try? await preferences.save(style)
+    }
+
+    /// Opening a stream adds it to the library, which is what gives it resume and a Mac player window.
+    func itemForStream(_ url: URL) async -> MediaItem? {
+        let name = url.lastPathComponent
+        let title = name.isEmpty || name == "/" ? url.host(percentEncoded: false) ?? url.absoluteString : name
+        return try? await AddToLibrary(library: library)(.stream(url), title: title)
+    }
+
+    /// Files opened from the Files app or Finder are added in place, or found if they're already there.
+    func importForOpening(_ urls: [URL]) async -> [MediaItem] {
+        (try? await importer.importMedia(at: urls)) ?? []
     }
 
     func libraryDidChange() {

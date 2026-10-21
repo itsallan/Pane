@@ -79,9 +79,9 @@ final class AppRouter {
     }
 
     func itemForStream(_ url: URL) async -> MediaItem? {
-        let name = url.lastPathComponent
-        let title = name.isEmpty || name == "/" ? url.host(percentEncoded: false) ?? url.absoluteString : name
-        return await addToLibrary(.stream(url), title: title)
+        let item = await dependencies.itemForStream(url)
+        await reloadLibraries()
+        return item
     }
 
     func itemForNetworkFile(_ entry: NetworkEntry, on server: NetworkServer) async -> MediaItem? {
@@ -122,9 +122,9 @@ final class AppRouter {
 
     /// Files opened from the Files app or Finder: added to the library in place, then the first one plays.
     func importForOpening(_ urls: [URL]) async -> MediaItem? {
-        let items = try? await dependencies.importer.importMedia(at: urls)
+        let items = await dependencies.importForOpening(urls)
         await reloadLibraries()
-        return items?.first
+        return items.first
     }
 
     func removeFolder(_ folder: LibraryFolder) async {

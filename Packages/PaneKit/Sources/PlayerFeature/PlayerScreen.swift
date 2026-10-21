@@ -10,7 +10,6 @@ public struct PlayerScreen<Surface: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
-    @FocusState private var isFocused: Bool
 
     public init(model: PlayerModel, onDismiss: (() -> Void)? = nil, @ViewBuilder surface: () -> Surface) {
         self.model = model
@@ -50,26 +49,12 @@ public struct PlayerScreen<Surface: View>: View {
         #if os(iOS)
         .statusBarHidden(!model.areControlsVisible)
         #else
-        .focusable()
-        .focused($isFocused)
-        .focusEffectDisabled()
-        .onAppear { isFocused = true }
-        .onKeyPress(.space) {
-            model.togglePlayback()
-            return .handled
-        }
-        .onKeyPress(.leftArrow) {
-            model.skip(by: .zero - PlayerModel.skipInterval)
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            model.skip(by: PlayerModel.skipInterval)
-            return .handled
-        }
-        .onKeyPress(".") {
-            guard model.canStepFrame else { return .ignored }
-            model.stepFrame()
-            return .handled
+        // On the whole screen rather than the layer under the chrome, so pointing at the capsule doesn't count as leaving.
+        .onContinuousHover { phase in
+            switch phase {
+            case .active: model.revealControls()
+            case .ended: model.pointerDidLeave()
+            }
         }
         #endif
     }
@@ -83,11 +68,6 @@ public struct PlayerScreen<Surface: View>: View {
             .contentShape(.rect)
             .onTapGesture(count: 2) { model.toggleVideoScaling() }
             .onTapGesture { model.toggleControls() }
-            .onContinuousHover { phase in
-                if case .active = phase {
-                    model.revealControls()
-                }
-            }
             .accessibilityHidden(true)
         #endif
     }
