@@ -212,12 +212,13 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 | Platform | Root | Player presentation |
 |---|---|---|
 | iPad | `NavigationSplitView`: sources sidebar (Library, Recents, Network, imported folders), library grid or network stack as detail | `fullScreenCover` |
-| macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in `.commands` |
+| macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in the Playback menu |
 | iPhone | `TabView` (Library, Recents, Network), one `NavigationStack` per tab; folders are listed inside Library | `fullScreenCover` |
 
 - **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width, and swapping roots on rotation would throw away the stack path. On iPad, the split view already collapses into a stack in compact multitasking.
-- **Mac players are windows** because people play several files side by side and expect to resize and close them like documents.
-- **Files open in place.** The app declares video document types with `LSSupportsOpeningDocumentsInPlace`, so Files and Finder hand over the original URL. `AppRouter` imports it through `MediaImporter` (which returns the existing item for a file already in the library) and plays it.
+- **Mac players are windows** because people play several files side by side and expect to resize and close them like documents. Player windows aren't restored at launch: SwiftUI brings them back without their item ID.
+- **The Playback menu is the Mac's keyboard handling.** Each player window publishes a `FocusedPlayer` with `focusedSceneValue`, and `PlaybackCommands` calls the same `PlayerModel` methods the on-screen controls use (J/K/L shuttle, `[` `]` speed, arrows for seeking and volume). Bare keys work as menu key equivalents and AppKit offers them to the menu before the window, so the items turn off while the options popover or the track sheet has the keyboard.
+- **Files open in place.** The app declares video document types with `LSSupportsOpeningDocumentsInPlace`, so Files and Finder hand over the original URL. `AppRouter` imports it through `MediaImporter` (which returns the existing item for a file already in the library) and plays it. When Finder opens several files at once, SwiftUI gives only the first to `onOpenURL` and forwards the rest to the app delegate, which queues them in `OpenedFiles` for the library window to open.
 - **The network stack is the same on every root.** `NetworkStack` (app target) holds a `NavigationStack` over `AppRouter.networkPath` and resolves `NetworkRoute` (`.openURL`, `.folder`). Folder models are kept per route while the route is on the path, so going back doesn't re-list the share.
 - **Library models live in the router**, one per scope, so switching sidebar items or tabs keeps each scope's sort, filter and posters. Closing a player bumps `AppDependencies.libraryRevision` and every window reloads.
 
@@ -233,3 +234,4 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 
 - VLCKit 4 is pre-release. 4.0.0-a25 ships a usable SwiftPM binary target and native A-B looping (`setABLoopFrom(_:to:)`); the engine falls back to checking time ticks if libvlc refuses a loop.
 - Delegate signatures may change between VLCKit 4 builds. The bridge contains that churn to one file.
+- 4.0.0-a25 can abort on an assertion in `vout_display_opengl_Prepare` when two players set up video at the same moment. Mac player windows start their sessions at least 0.5 s apart; recheck on each VLCKit upgrade.
