@@ -43,6 +43,7 @@ public final class PlayerModel {
     public let subtitleAppearance: SubtitleAppearance
     public let loop: ABLoop
     public let sleepTimer: SleepTimer
+    public let snapshot: FrameSnapshot
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -80,6 +81,7 @@ public final class PlayerModel {
         title: String? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
+        photoLibrary: (any PhotoLibrary)? = nil,
         clock: C = ContinuousClock()
     ) {
         self.init(
@@ -93,6 +95,7 @@ public final class PlayerModel {
             saveSubtitleStyle: nil,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
+            photoLibrary: photoLibrary,
             clock: clock
         )
     }
@@ -108,6 +111,7 @@ public final class PlayerModel {
         saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
+        photoLibrary: (any PhotoLibrary)? = nil,
         clock: C = ContinuousClock()
     ) {
         self.init(
@@ -121,6 +125,7 @@ public final class PlayerModel {
             saveSubtitleStyle: saveSubtitleStyle,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
+            photoLibrary: photoLibrary,
             clock: clock
         )
     }
@@ -136,6 +141,7 @@ public final class PlayerModel {
         saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)?,
         thumbnails: (any ThumbnailProvider)?,
         screenBrightness: (any ScreenBrightness)?,
+        photoLibrary: (any PhotoLibrary)?,
         clock: C
     ) {
         self.engine = engine
@@ -153,6 +159,7 @@ public final class PlayerModel {
         elapsed = { origin.duration(to: clock.now) }
         sleep = { try await clock.sleep(for: $0) }
         sleepTimer = SleepTimer(engine: engine, sleep: sleep)
+        snapshot = FrameSnapshot(engine: engine, photoLibrary: photoLibrary, sleep: sleep)
         originalBrightness = screenBrightness?.level
         brightness = originalBrightness
         subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }

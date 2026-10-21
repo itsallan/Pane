@@ -38,6 +38,7 @@ public struct PlayerScreen<Surface: View>: View {
         .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
         .animation(.smooth(duration: 0.3), value: model.subtitleSync.phase)
         .animation(.smooth(duration: 0.3), value: model.subtitleAppearance.isEditing)
+        .animation(.smooth(duration: 0.2), value: model.snapshot.outcome)
         .sheet(isPresented: $model.isTrackSheetPresented) {
             TrackSheet(model: model)
         }
@@ -94,8 +95,13 @@ public struct PlayerScreen<Surface: View>: View {
     private var chrome: some View {
         VStack(spacing: 0) {
             if model.areControlsVisible {
-                TopBar(title: model.title, onDismiss: onDismiss)
+                TopBar(title: model.title, onDismiss: onDismiss, snapshot: model.snapshot)
                     .transition(chromeTransition(edge: .top))
+            }
+            if let outcome = model.snapshot.outcome {
+                SnapshotToast(outcome: outcome)
+                    .padding(.top, Metrics.controlSpacing)
+                    .transition(.opacity)
             }
             // Up top, because libvlc draws subtitles along the bottom of the whole surface and the preview has to stay clear.
             if model.subtitleAppearance.isEditing {
@@ -147,6 +153,7 @@ public struct PlayerScreen<Surface: View>: View {
 private struct TopBar: View {
     let title: String?
     let onDismiss: (() -> Void)?
+    let snapshot: FrameSnapshot
 
     var body: some View {
         GlassEffectContainer {
@@ -165,9 +172,18 @@ private struct TopBar: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 Spacer(minLength: 0)
+                if snapshot.isAvailable {
+                    TransportButton("Save Frame to Photos", systemImage: "camera", action: saveFrame)
+                        .glassEffect(.regular.interactive(), in: .circle)
+                        .disabled(snapshot.isSaving)
+                }
             }
         }
         .padding(.top, 8)
+    }
+
+    private func saveFrame() {
+        Task { await snapshot.capture() }
     }
 }
 

@@ -25,7 +25,8 @@ final class PlayerSession: Identifiable {
             subtitleStyle: dependencies.subtitleStyle,
             saveSubtitleStyle: { await dependencies.saveSubtitleStyle($0) },
             thumbnails: dependencies.thumbnails,
-            screenBrightness: brightness
+            screenBrightness: brightness,
+            photoLibrary: SystemPhotoLibrary()
         )
     }
 
