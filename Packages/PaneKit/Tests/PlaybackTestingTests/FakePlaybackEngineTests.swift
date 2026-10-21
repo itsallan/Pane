@@ -85,6 +85,16 @@ struct FakeNetworkBrowserTests {
         #expect(try await browser.contents(of: server, path: "/") == movies)
     }
 
+    @Test func rejectsAMistypedPassword() async throws {
+        let server = NetworkServer(kind: .smb, host: "nas.local", displayName: "NAS", requiresCredentials: true)
+        let credentials = InMemoryCredentialStore(credentials: [server.id: NetworkCredential(user: "pane", password: "wrong")])
+        let browser = FakeNetworkBrowser(listings: [server.id: ["/": []]], passwords: [server.id: "secret"], credentials: credentials)
+
+        await #expect(throws: PlaybackError.authenticationRequired(server: server.id)) {
+            try await browser.contents(of: server, path: "/")
+        }
+    }
+
     @Test func credentialsNeverPrintTheirPassword() {
         let credential = NetworkCredential(user: "pane", password: "hunter2")
         #expect(!"\(credential)".contains("hunter2"))
