@@ -21,4 +21,11 @@ enum SubtitleFile {
         try FileManager.default.copyItem(at: url, to: copy)
         return copy
     }
+
+    /// Old subtitle files are often Windows-1252 rather than UTF-8.
+    @concurrent
+    static func text(at url: URL) async -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return String(data: data, encoding: .utf8) ?? String(data: data, encoding: .windowsCP1252)
+    }
 }

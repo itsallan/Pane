@@ -38,6 +38,7 @@ public final class PlayerModel {
         didSet { presentationDidChange(from: oldValue, to: isTrackSheetPresented) }
     }
     public var subtitleImportFailed = false
+    public let subtitleSync: SubtitleSync
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -127,6 +128,7 @@ public final class PlayerModel {
     ) {
         self.engine = engine
         self.item = item
+        subtitleSync = SubtitleSync(engine: engine)
         self.title = title
         self.resume = resume
         self.recordProgress = recordProgress
@@ -138,6 +140,8 @@ public final class PlayerModel {
         sleep = { try await clock.sleep(for: $0) }
         originalBrightness = screenBrightness?.level
         brightness = originalBrightness
+        subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }
+        subtitleSync.onActiveChange = { [weak self] in self?.revealControls() }
     }
 
     public var failure: PlaybackError? {
@@ -250,6 +254,9 @@ public final class PlayerModel {
         manualTrackKinds.insert(.subtitle)
         do {
             let copy = try await SubtitleFile.copy(of: url)
+            if let text = await SubtitleFile.text(at: copy) {
+                subtitleSync.expect(ParseSubtitleCues()(text), besides: Set(subtitleTracks.map(\.id)))
+            }
             try await engine.addSubtitle(from: copy)
         } catch {
             subtitleImportFailed = true
@@ -429,7 +436,7 @@ extension PlayerModel {
     }
 
     private var canAutoHide: Bool {
-        isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented
+        isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented && !subtitleSync.isActive
     }
 
     private func presentationDidChange(from oldValue: Bool, to isPresented: Bool) {
@@ -465,6 +472,7 @@ extension PlayerModel {
         assign(\.isSeekable, state.isSeekable)
         assign(\.tracks, state.tracks)
         assign(\.selectedTrackIDs, state.selectedTrackIDs)
+        subtitleSync.update(from: state)
         if !isSpeedBoosted {
             assign(\.rate, state.rate)
         }

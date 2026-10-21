@@ -3,6 +3,13 @@ import Foundation
 import SwiftUI
 
 extension Duration {
+    /// "In sync", "0.35 s later" or "1.20 s earlier", for a subtitle delay.
+    var delayDescription: String {
+        guard self != .zero else { return String(localized: "In sync") }
+        let seconds = abs(self / .seconds(1)).formatted(.number.precision(.fractionLength(2)))
+        return self > .zero ? String(localized: "\(seconds) s later") : String(localized: "\(seconds) s earlier")
+    }
+
     var timecode: String {
         let pattern: Duration.TimeFormatStyle.Pattern = self >= .seconds(3600) ? .hourMinuteSecond : .minuteSecond
         return formatted(.time(pattern: pattern))

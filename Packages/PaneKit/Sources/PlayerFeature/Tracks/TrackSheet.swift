@@ -28,6 +28,9 @@ struct TrackSheet: View {
                     }
                     Button("Add Subtitle File…", systemImage: "plus", action: presentImporter)
                 }
+                if !model.areSubtitlesOff {
+                    SubtitleTimingSection(sync: model.subtitleSync, onSyncByEar: syncByEar)
+                }
             }
             .navigationTitle("Audio & Subtitles")
             #if os(iOS)
@@ -45,6 +48,11 @@ struct TrackSheet: View {
         #if os(macOS)
         .frame(minWidth: 380, minHeight: 420)
         #endif
+    }
+
+    private func syncByEar() {
+        model.isTrackSheetPresented = false
+        model.subtitleSync.begin()
     }
 
     private func presentImporter() {

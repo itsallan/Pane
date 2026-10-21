@@ -47,6 +47,7 @@ struct PlayerModelTrackTests {
         #expect(added != file)
         #expect(added.lastPathComponent == file.lastPathComponent)
         #expect(FileManager.default.contents(atPath: added.path(percentEncoded: false)) == FileManager.default.contents(atPath: file.path(percentEncoded: false)))
+        await eventually { !model.areSubtitlesOff }
         #expect(!model.areSubtitlesOff)
         #expect(!model.subtitleImportFailed)
     }

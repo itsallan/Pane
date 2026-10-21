@@ -32,6 +32,7 @@ public struct PlayerScreen<Surface: View>: View {
         }
         .animation(reduceMotion ? .linear(duration: 0.15) : .smooth(duration: 0.3), value: model.areControlsVisible)
         .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
+        .animation(.smooth(duration: 0.3), value: model.subtitleSync.phase)
         .sheet(isPresented: $model.isTrackSheetPresented) {
             TrackSheet(model: model)
         }
@@ -96,7 +97,10 @@ public struct PlayerScreen<Surface: View>: View {
                     .padding(.bottom, 16)
                     .transition(.opacity)
             }
-            if model.areControlsVisible {
+            if model.subtitleSync.isActive {
+                SubtitleSyncPanel(sync: model.subtitleSync)
+                    .transition(chromeTransition(edge: .bottom))
+            } else if model.areControlsVisible {
                 ControlCapsule(model: model)
                     .transition(chromeTransition(edge: .bottom))
             }
