@@ -57,7 +57,7 @@ extension PlaybackError {
         case .unresolvableBookmark: "The file has moved or is no longer accessible."
         case .unknownServer, .serverUnreachable: "The server can't be reached."
         case .authenticationRequired: "The server needs you to sign in."
-        case .decodingFailed: "This video can't be decoded."
+        case .decodingFailed: "Pane can't play this video's format."
         case .networkFailed: "The connection was lost."
         case .unknownTrack, .unreadableSubtitle, .captureFailed, .thumbnailFailed: "Something went wrong."
         }

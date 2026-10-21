@@ -404,6 +404,11 @@ private extension VLCPlaybackEngine {
         case .error:
             if let share, responder.wasRejected(share.login) {
                 failure = .authenticationRequired(server: share.server)
+            } else if let share, state.tracks.isEmpty {
+                // Nothing was demuxed, so the share never opened: libsmb2 and libssh2 end up here when the host
+                // doesn't resolve or refuses the connection. isInputOpen can't tell, since the capabilities
+                // notification arrives before the failure.
+                failure = .serverUnreachable(share.server)
             } else {
                 failure = .playbackFailure(isRemote: location?.isRemote ?? true)
             }
