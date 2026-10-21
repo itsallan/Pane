@@ -18,6 +18,10 @@ public final class OpenURLModel {
         self.history = history
     }
 
+    public var canSubmit: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     public func load() async {
         recents = (try? await history.recentStreams()) ?? []
     }

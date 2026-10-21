@@ -6,7 +6,6 @@ public struct OpenURLScreen: View {
     private let onOpen: (URL) -> Void
 
     @FocusState private var isAddressFocused: Bool
-    @State private var isConfirmingClear = false
 
     public init(model: OpenURLModel, onOpen: @escaping (URL) -> Void) {
         self.model = model
@@ -35,37 +34,7 @@ public struct OpenURLScreen: View {
                 }
             }
             if !model.recents.isEmpty {
-                Section {
-                    ForEach(model.recents) { stream in
-                        Button {
-                            reopen(stream)
-                        } label: {
-                            RecentStreamRow(stream: stream)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .contextMenu {
-                            Button("Remove from History", systemImage: "trash", role: .destructive) {
-                                remove(stream)
-                            }
-                        }
-                    }
-                    .onDelete(perform: remove)
-                } header: {
-                    HStack {
-                        Text("Recent")
-                        Spacer()
-                        Button("Clear", role: .destructive) {
-                            isConfirmingClear = true
-                        }
-                        .textCase(nil)
-                        .confirmationDialog("Clear stream history?", isPresented: $isConfirmingClear) {
-                            Button("Clear History", role: .destructive, action: clearHistory)
-                        } message: {
-                            Text("Streams you've already played stay in your library.")
-                        }
-                    }
-                }
+                RecentStreamsSection(model: model, onReopen: reopen)
             }
         }
         .formStyle(.grouped)
@@ -73,15 +42,17 @@ public struct OpenURLScreen: View {
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Open", action: open)
-                    .disabled(model.text.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .disabled(!model.canSubmit)
             }
         }
         .task {
             await model.load()
         }
-        .onAppear {
-            isAddressFocused = true
-        }
+        .onAppear(perform: focusAddress)
+    }
+
+    private func focusAddress() {
+        isAddressFocused = true
     }
 
     private func open() {
@@ -96,22 +67,5 @@ public struct OpenURLScreen: View {
             await model.reopen(stream.url)
             onOpen(stream.url)
         }
-    }
-
-    private func remove(_ stream: RecentStream) {
-        Task { await model.remove(stream) }
-    }
-
-    private func remove(at offsets: IndexSet) {
-        let streams = offsets.map { model.recents[$0] }
-        Task {
-            for stream in streams {
-                await model.remove(stream)
-            }
-        }
-    }
-
-    private func clearHistory() {
-        Task { await model.clearHistory() }
     }
 }

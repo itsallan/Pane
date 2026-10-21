@@ -37,31 +37,11 @@ public struct NetworkScreen: View {
                     }
                 }
             }
-            Section {
-                ForEach(model.nearbyServers) { server in
-                    NavigationLink(value: server.rootRoute) {
-                        ServerRow(server: server)
-                    }
-                }
-                if model.nearbyServers.isEmpty {
-                    Label {
-                        Text("Looking for servers…")
-                            .foregroundStyle(.secondary)
-                    } icon: {
-                        ProgressView()
-                    }
-                }
-            } header: {
-                Text("Nearby")
-            } footer: {
-                Text("Pane finds SMB and UPnP servers on your network. Add SFTP servers, or SMB servers that don't show up, by hand.")
-            }
+            NearbyServersSection(servers: model.nearbyServers)
         }
         .navigationTitle("Network")
         .toolbar {
-            Button("Add Server", systemImage: "plus") {
-                isAddingServer = true
-            }
+            Button("Add Server", systemImage: "plus", action: presentAddServer)
         }
         .sheet(isPresented: $isAddingServer) {
             AddServerSheet(onSave: add)
@@ -80,6 +60,10 @@ public struct NetworkScreen: View {
         .task {
             await model.discover()
         }
+    }
+
+    private func presentAddServer() {
+        isAddingServer = true
     }
 
     private func add(_ server: NetworkServer, credential: NetworkCredential?) {

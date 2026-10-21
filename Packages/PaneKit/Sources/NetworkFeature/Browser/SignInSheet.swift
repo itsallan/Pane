@@ -56,9 +56,7 @@ struct SignInSheet: View {
             #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel", role: .cancel) {
-                        dismiss()
-                    }
+                    Button("Cancel", role: .cancel, action: cancel)
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     if isSigningIn {
@@ -69,9 +67,7 @@ struct SignInSheet: View {
                     }
                 }
             }
-            .onAppear {
-                focusedField = request.user.isEmpty ? .user : .password
-            }
+            .onAppear(perform: focusFirstEmptyField)
             .onChange(of: isSigningIn) { _, isSigningIn in
                 // Still open after an attempt means it was rejected; start the password over.
                 guard !isSigningIn else { return }
@@ -84,6 +80,14 @@ struct SignInSheet: View {
         #if os(macOS)
         .frame(minWidth: 400, minHeight: 260)
         #endif
+    }
+
+    private func cancel() {
+        dismiss()
+    }
+
+    private func focusFirstEmptyField() {
+        focusedField = request.user.isEmpty ? .user : .password
     }
 
     private func signIn() {
