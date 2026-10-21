@@ -86,3 +86,46 @@ extension ProgressRecord {
         updatedAt = date
     }
 }
+
+extension NetworkServerRecord.Kind {
+    init(_ kind: NetworkServer.Kind) {
+        switch kind {
+        case .smb: self = .smb
+        case .sftp: self = .sftp
+        case .upnp: self = .upnp
+        }
+    }
+
+    var serverKind: NetworkServer.Kind {
+        switch self {
+        case .smb: .smb
+        case .sftp: .sftp
+        case .upnp: .upnp
+        }
+    }
+}
+
+extension NetworkServerRecord {
+    convenience init(_ server: NetworkServer) {
+        self.init(
+            id: server.id,
+            kind: .init(server.kind),
+            host: server.host,
+            port: server.port,
+            displayName: server.displayName,
+            requiresCredentials: server.requiresCredentials
+        )
+    }
+
+    func update(from server: NetworkServer) {
+        kind = .init(server.kind)
+        host = server.host
+        port = server.port
+        displayName = server.displayName
+        requiresCredentials = server.requiresCredentials
+    }
+
+    var networkServer: NetworkServer {
+        NetworkServer(id: id, kind: kind.serverKind, host: host, port: port, displayName: displayName, requiresCredentials: requiresCredentials)
+    }
+}
