@@ -24,7 +24,7 @@ public struct NetworkServer: Sendable, Hashable, Identifiable {
     }
 }
 
-public struct NetworkEntry: Sendable, Hashable {
+public struct NetworkEntry: Sendable, Hashable, Identifiable {
     public var name: String
     public var path: String
     public var isDirectory: Bool
@@ -36,6 +36,9 @@ public struct NetworkEntry: Sendable, Hashable {
         self.isDirectory = isDirectory
         self.size = size
     }
+
+    /// A path is unique within a listing; for UPnP it's the item's full URL.
+    public var id: String { path }
 }
 
 public struct NetworkCredential: Sendable, Hashable {
