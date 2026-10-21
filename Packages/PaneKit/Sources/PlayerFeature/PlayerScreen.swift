@@ -108,6 +108,11 @@ public struct PlayerScreen<Surface: View>: View {
                     .padding(.bottom, 16)
                     .transition(.opacity)
             }
+            if let range = model.loop.range, model.areControlsVisible, !model.subtitleAppearance.isEditing {
+                LoopBadge(range: range, onClear: model.loop.clear)
+                    .padding(.bottom, Metrics.controlSpacing)
+                    .transition(.opacity)
+            }
             if model.subtitleSync.isActive {
                 SubtitleSyncPanel(sync: model.subtitleSync)
                     .transition(chromeTransition(edge: .bottom))

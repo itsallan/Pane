@@ -40,6 +40,7 @@ public final class PlayerModel {
     public var subtitleImportFailed = false
     public let subtitleSync: SubtitleSync
     public let subtitleAppearance: SubtitleAppearance
+    public let loop: ABLoop
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -138,6 +139,7 @@ public final class PlayerModel {
         self.engine = engine
         self.item = item
         subtitleSync = SubtitleSync(engine: engine)
+        loop = ABLoop(engine: engine)
         subtitleAppearance = SubtitleAppearance(engine: engine, style: subtitleStyle, save: saveSubtitleStyle)
         self.title = title
         self.resume = resume
@@ -151,6 +153,7 @@ public final class PlayerModel {
         originalBrightness = screenBrightness?.level
         brightness = originalBrightness
         subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }
+        loop.currentPosition = { [weak self] in self?.position ?? .zero }
         subtitleSync.onActiveChange = { [weak self] in self?.revealControls() }
         subtitleAppearance.isPlaying = { [weak self] in self?.isPlaybackActive ?? false }
         subtitleAppearance.onEditingChange = { [weak self] in self?.revealControls() }
@@ -499,6 +502,7 @@ extension PlayerModel {
         assign(\.tracks, state.tracks)
         assign(\.selectedTrackIDs, state.selectedTrackIDs)
         subtitleSync.update(from: state)
+        loop.update(from: state)
         if !isSpeedBoosted {
             assign(\.rate, state.rate)
         }
