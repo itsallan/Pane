@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SignInSheet: View {
     let request: SignInRequest
+    let isSigningIn: Bool
     let onSignIn: (NetworkCredential) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -15,8 +16,9 @@ struct SignInSheet: View {
         case password
     }
 
-    init(request: SignInRequest, onSignIn: @escaping (NetworkCredential) -> Void) {
+    init(request: SignInRequest, isSigningIn: Bool, onSignIn: @escaping (NetworkCredential) -> Void) {
         self.request = request
+        self.isSigningIn = isSigningIn
         self.onSignIn = onSignIn
         _user = State(initialValue: request.user)
     }
@@ -24,9 +26,10 @@ struct SignInSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                // No username or password content types: they make iOS offer to save the login to Passwords
+                // with no website to tie it to, on top of the keychain item Pane already keeps.
                 Section {
                     TextField("User Name", text: $user)
-                        .textContentType(.username)
                         .autocorrectionDisabled()
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
@@ -34,7 +37,6 @@ struct SignInSheet: View {
                         .focused($focusedField, equals: .user)
                         .onSubmit { focusedField = .password }
                     SecureField("Password", text: $password)
-                        .textContentType(.password)
                         .focused($focusedField, equals: .password)
                         .onSubmit(signIn)
                 } header: {
@@ -59,22 +61,33 @@ struct SignInSheet: View {
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Sign In", action: signIn)
-                        .disabled(user.isEmpty)
+                    if isSigningIn {
+                        ProgressView()
+                    } else {
+                        Button("Sign In", action: signIn)
+                            .disabled(user.isEmpty)
+                    }
                 }
             }
             .onAppear {
                 focusedField = request.user.isEmpty ? .user : .password
             }
+            .onChange(of: isSigningIn) { _, isSigningIn in
+                // Still open after an attempt means it was rejected; start the password over.
+                guard !isSigningIn else { return }
+                password = ""
+                focusedField = .password
+            }
         }
+        .presentationDetents([.medium, .large])
+        .interactiveDismissDisabled(isSigningIn)
         #if os(macOS)
         .frame(minWidth: 400, minHeight: 260)
         #endif
     }
 
     private func signIn() {
-        guard !user.isEmpty else { return }
+        guard !user.isEmpty, !isSigningIn else { return }
         onSignIn(NetworkCredential(user: user, password: password))
-        dismiss()
     }
 }

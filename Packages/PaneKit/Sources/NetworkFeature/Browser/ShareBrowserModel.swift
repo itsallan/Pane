@@ -18,6 +18,7 @@ public final class ShareBrowserModel {
     public private(set) var folders: [NetworkEntry] = []
     public private(set) var files: [NetworkEntry] = []
     public var signInRequest: SignInRequest?
+    public private(set) var isSigningIn = false
 
     private let browser: any NetworkBrowser
     private let servers: any NetworkServerRepository
@@ -70,20 +71,26 @@ public final class ShareBrowserModel {
     public func requestSignIn() async {
         let saved = try? await credentials.credential(for: server.id)
         // A saved login that still fails was rejected, which is worth saying instead of asking as if for the first time.
-        signInRequest = SignInRequest(serverName: server.displayName, user: saved?.user ?? "", isRetry: saved != nil)
+        signInRequest = SignInRequest(id: server.id, serverName: server.displayName, user: saved?.user ?? "", isRetry: saved != nil)
     }
 
+    /// The sheet stays up until the share accepts the login; a rejection turns it into a retry.
     public func signIn(_ credential: NetworkCredential) async {
-        signInRequest = nil
+        isSigningIn = true
+        defer { isSigningIn = false }
         server.requiresCredentials = true
         do {
             try await credentials.save(credential, for: server.id)
             // Saving the server is what lets a file from it play later: the library refers to it by ID.
             try await servers.save(server)
         } catch {
+            signInRequest = nil
             phase = .failed(.failed)
             return
         }
         await load()
+        if phase != .failed(.signInRequired) {
+            signInRequest = nil
+        }
     }
 }

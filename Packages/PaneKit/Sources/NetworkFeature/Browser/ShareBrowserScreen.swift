@@ -14,8 +14,12 @@ public struct ShareBrowserScreen: View {
     public var body: some View {
         content
             .navigationTitle(model.title)
+            #if os(iOS)
+            // Folder and server names run long; a large title would truncate most of them.
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .sheet(item: $model.signInRequest) { request in
-                SignInSheet(request: request, onSignIn: signIn)
+                SignInSheet(request: request, isSigningIn: model.isSigningIn, onSignIn: signIn)
             }
             .task {
                 await model.loadIfNeeded()

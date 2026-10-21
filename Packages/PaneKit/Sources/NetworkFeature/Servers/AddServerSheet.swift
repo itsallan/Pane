@@ -44,15 +44,14 @@ struct AddServerSheet: View {
                         #endif
                     TextField("Name", text: $name, prompt: Text("Optional"))
                 }
+                // No login content types, for the same reason as SignInSheet.
                 Section {
                     TextField("User Name", text: $user, prompt: Text(kind == .smb ? "Optional for guest access" : "Required"))
-                        .textContentType(.username)
                         .autocorrectionDisabled()
                         #if os(iOS)
                         .textInputAutocapitalization(.never)
                         #endif
                     SecureField("Password", text: $password)
-                        .textContentType(.password)
                 } footer: {
                     Text("Pane keeps the password in your keychain.")
                 }

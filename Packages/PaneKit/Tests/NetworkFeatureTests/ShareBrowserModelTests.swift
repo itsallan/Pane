@@ -55,9 +55,13 @@ struct ShareBrowserModelTests {
         let model = makeModel(credentials: InMemoryCredentialStore())
 
         await model.load()
+        let firstRequest = model.signInRequest
         await model.signIn(NetworkCredential(user: "pane", password: "wrong"))
 
         #expect(model.phase == .failed(.signInRequired))
+        // Same ID, so the open sheet updates instead of closing and reopening.
+        #expect(model.signInRequest?.id == firstRequest?.id)
+        #expect(!model.isSigningIn)
         #expect(model.signInRequest?.isRetry == true)
         #expect(model.signInRequest?.user == "pane")
     }
