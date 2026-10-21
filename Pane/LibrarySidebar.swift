@@ -8,14 +8,16 @@ struct LibrarySidebar: View {
     var body: some View {
         List(selection: $router.sidebarSelection) {
             Label("Library", systemImage: "film.stack")
-                .tag(LibraryScope.all)
+                .tag(AppRouter.SidebarItem.library(.all))
             Label("Recents", systemImage: "clock")
-                .tag(LibraryScope.recents)
+                .tag(AppRouter.SidebarItem.library(.recents))
+            Label("Network", systemImage: "network")
+                .tag(AppRouter.SidebarItem.network)
             if !router.folders.isEmpty {
                 Section("Folders") {
                     ForEach(router.folders) { folder in
                         Label(folder.name, systemImage: "folder")
-                            .tag(LibraryScope.folder(folder))
+                            .tag(AppRouter.SidebarItem.library(.folder(folder)))
                             .contextMenu {
                                 Button("Remove Folder", systemImage: "trash", role: .destructive) {
                                     remove(folder)

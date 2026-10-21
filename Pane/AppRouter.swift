@@ -1,6 +1,7 @@
 import Domain
 import Foundation
 import LibraryFeature
+import NetworkFeature
 import Observation
 
 /// Per window: what's selected, the navigation paths and the presented player.
@@ -9,15 +10,29 @@ final class AppRouter {
     enum Tab: Hashable {
         case library
         case recents
+        case network
+    }
+
+    enum SidebarItem: Hashable {
+        case library(LibraryScope)
+        case network
     }
 
     var selectedTab = Tab.library
-    var sidebarSelection: LibraryScope? = .all
+    var sidebarSelection: SidebarItem? = .library(.all)
     var libraryPath: [LibraryScope] = []
+    var networkPath: [NetworkRoute] = []
     var presentedSession: PlayerSession?
 
     let dependencies: AppDependencies
     @ObservationIgnored private var models: [LibraryScope: LibraryModel] = [:]
+    @ObservationIgnored private var browserModels: [NetworkRoute: ShareBrowserModel] = [:]
+    @ObservationIgnored private(set) lazy var networkModel = NetworkModel(
+        browser: dependencies.networkBrowser,
+        servers: dependencies.servers,
+        credentials: dependencies.credentials
+    )
+    @ObservationIgnored private(set) lazy var openURLModel = OpenURLModel(history: dependencies.streamHistory)
 
     init(dependencies: AppDependencies) {
         self.dependencies = dependencies
@@ -39,6 +54,50 @@ final class AppRouter {
         )
         models[scope] = model
         return model
+    }
+
+    /// Kept per route like the library models, so going back to a folder shows its listing without asking the server again.
+    func browserModel(for route: NetworkRoute) -> ShareBrowserModel? {
+        guard case .folder(let server, let path, let name) = route else { return nil }
+        if let model = browserModels[route] {
+            return model
+        }
+        let model = ShareBrowserModel(
+            server: server,
+            path: path,
+            title: name,
+            browser: dependencies.networkBrowser,
+            servers: dependencies.servers,
+            credentials: dependencies.credentials
+        )
+        browserModels[route] = model
+        return model
+    }
+
+    func networkPathDidChange() {
+        browserModels = browserModels.filter { networkPath.contains($0.key) }
+    }
+
+    func itemForStream(_ url: URL) async -> MediaItem? {
+        let name = url.lastPathComponent
+        let title = name.isEmpty || name == "/" ? url.host(percentEncoded: false) ?? url.absoluteString : name
+        return await addToLibrary(.stream(url), title: title)
+    }
+
+    func itemForNetworkFile(_ entry: NetworkEntry, on server: NetworkServer) async -> MediaItem? {
+        // The engine finds the server by ID when it opens the file, so a server found by discovery has to be saved first.
+        do {
+            try await dependencies.servers.save(server)
+        } catch {
+            return nil
+        }
+        return await addToLibrary(.networkShare(server: server.id, path: entry.path), title: (entry.name as NSString).deletingPathExtension)
+    }
+
+    private func addToLibrary(_ source: MediaSource, title: String) async -> MediaItem? {
+        let item = try? await AddToLibrary(library: dependencies.library)(source, title: title)
+        await reloadLibraries()
+        return item
     }
 
     func present(_ item: MediaItem) {
@@ -69,8 +128,8 @@ final class AppRouter {
     }
 
     func removeFolder(_ folder: LibraryFolder) async {
-        if sidebarSelection == .folder(folder) {
-            sidebarSelection = .all
+        if sidebarSelection == .library(.folder(folder)) {
+            sidebarSelection = .library(.all)
         }
         libraryPath.removeAll { $0 == .folder(folder) }
         await model(for: .all).removeFolder(folder)

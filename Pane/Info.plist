@@ -20,6 +20,13 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_smb._tcp</string>
+		<string>_sftp-ssh._tcp</string>
+	</array>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Pane looks for file servers and media servers on your network so you can play videos from them.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Pane saves the frames you capture to your photo library.</string>
 	<key>LSSupportsOpeningDocumentsInPlace</key>

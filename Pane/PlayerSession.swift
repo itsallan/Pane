@@ -9,7 +9,11 @@ final class PlayerSession: Identifiable {
     let drawable: VideoDrawable
 
     init(item: MediaItem, dependencies: AppDependencies) {
-        let (engine, drawable) = VLCPlaybackEngine.makeWithSurface(subtitleStyle: dependencies.subtitleStyle)
+        let (engine, drawable) = VLCPlaybackEngine.makeWithSurface(
+            subtitleStyle: dependencies.subtitleStyle,
+            servers: dependencies.servers,
+            credentials: dependencies.credentials
+        )
         self.drawable = drawable
         #if os(iOS)
         let brightness: (any ScreenBrightness)? = SceneScreenBrightness()

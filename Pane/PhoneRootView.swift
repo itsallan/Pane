@@ -27,6 +27,9 @@ struct PhoneRootView: View {
                     LibraryScreen(model: router.model(for: .recents), onOpen: onOpen)
                 }
             }
+            Tab("Network", systemImage: "network", value: .network) {
+                NetworkStack(router: router, onOpen: onOpen)
+            }
         }
         .tabBarMinimizeBehavior(.onScrollDown)
     }

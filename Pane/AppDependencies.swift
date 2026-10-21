@@ -12,6 +12,10 @@ final class AppDependencies {
     let preferences: any PreferencesRepository
     let importer: any MediaImporter
     let thumbnails: any ThumbnailProvider
+    let servers: any NetworkServerRepository
+    let credentials: any CredentialStore
+    let streamHistory: any StreamHistoryRepository
+    let networkBrowser: any NetworkBrowser
     private let store: SwiftDataLibraryRepository
     /// Read when a player is built, because libvlc takes part of the style only at creation.
     private(set) var subtitleStyle = SubtitleStyle()
@@ -36,6 +40,15 @@ final class AppDependencies {
         preferences = UserDefaultsPreferencesRepository()
         importer = BookmarkImporter(library: store)
         thumbnails = VLCThumbnailProvider()
+        servers = SwiftDataNetworkServerRepository(modelContainer: container)
+        let keychain = KeychainCredentialStore()
+        credentials = keychain
+        streamHistory = SwiftDataStreamHistoryRepository(modelContainer: container)
+        #if DEBUG
+        networkBrowser = DemoNetwork.isEnabled ? DemoNetwork.browser(credentials: keychain) : VLCNetworkBrowser(credentials: keychain)
+        #else
+        networkBrowser = VLCNetworkBrowser(credentials: keychain)
+        #endif
     }
 
     /// Reopens imported folders and refreshes stale bookmarks; run once at launch.

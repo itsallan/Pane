@@ -10,17 +10,21 @@ struct SplitRootView: View {
         NavigationSplitView {
             LibrarySidebar(router: router)
         } detail: {
-            let scope = router.sidebarSelection ?? .all
-            NavigationStack {
-                LibraryScreen(model: router.model(for: scope), onOpen: onOpen)
-                    #if DEBUG
-                    .toolbar {
-                        SampleStreamsButton(router: router)
-                    }
-                    #endif
+            switch router.sidebarSelection ?? .library(.all) {
+            case .library(let scope):
+                NavigationStack {
+                    LibraryScreen(model: router.model(for: scope), onOpen: onOpen)
+                        #if DEBUG
+                        .toolbar {
+                            SampleStreamsButton(router: router)
+                        }
+                        #endif
+                }
+                // Each scope gets its own stack, so search and scroll position don't leak between them.
+                .id(scope)
+            case .network:
+                NetworkStack(router: router, onOpen: onOpen)
             }
-            // Each scope gets its own stack, so search and scroll position don't leak between them.
-            .id(scope)
         }
     }
 }
