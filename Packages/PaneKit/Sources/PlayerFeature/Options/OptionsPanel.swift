@@ -12,6 +12,7 @@ struct OptionsPanel: View {
                     LoopSection(loop: model.loop)
                 }
                 PictureSection(model: model)
+                SleepTimerSection(timer: model.sleepTimer)
                 if !model.chapters.isEmpty {
                     ChapterSection(model: model)
                 }

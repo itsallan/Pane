@@ -42,6 +42,7 @@ public final class PlayerModel {
     public let subtitleSync: SubtitleSync
     public let subtitleAppearance: SubtitleAppearance
     public let loop: ABLoop
+    public let sleepTimer: SleepTimer
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -151,6 +152,7 @@ public final class PlayerModel {
         let origin = clock.now
         elapsed = { origin.duration(to: clock.now) }
         sleep = { try await clock.sleep(for: $0) }
+        sleepTimer = SleepTimer(engine: engine, sleep: sleep)
         originalBrightness = screenBrightness?.level
         brightness = originalBrightness
         subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }
@@ -217,6 +219,7 @@ public final class PlayerModel {
         guard !isClosed else { return }
         saveProgress(.close)
         isClosed = true
+        sleepTimer.setting = nil
         restoreBrightness()
         await progressWrite?.value
         await engine.close()
@@ -553,6 +556,9 @@ extension PlayerModel {
         case .idle, .paused, .ended, .failed:
             endSpeedBoost()
             revealControls()
+        }
+        if status == .ended {
+            sleepTimer.itemDidEnd()
         }
         if status == .paused || status == .ended {
             saveProgress(.pause)
