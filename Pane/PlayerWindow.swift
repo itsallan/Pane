@@ -7,6 +7,8 @@ import SwiftUI
 
 struct PlayerWindow: View {
     static let id = "player"
+    private static let sessionSpacing = Duration.milliseconds(500)
+    private static var nextSessionStart = ContinuousClock.now
 
     let itemID: MediaItem.ID?
     let dependencies: AppDependencies
@@ -47,7 +49,17 @@ struct PlayerWindow: View {
 
     private func openSession() async {
         guard session == nil, let itemID, let item = try? await dependencies.library.item(withID: itemID) else { return }
+        await waitForTurn()
+        guard session == nil, !Task.isCancelled else { return }
         session = PlayerSession(item: item, dependencies: dependencies)
+    }
+
+    // VLCKit 4.0.0-a25 can abort in vout_display_opengl_Prepare when players set up video at the same moment,
+    // which happens when Finder opens several files at once, so sessions start at least half a second apart.
+    private func waitForTurn() async {
+        let start = max(.now, Self.nextSessionStart)
+        Self.nextSessionStart = start + Self.sessionSpacing
+        try? await Task.sleep(until: start)
     }
 
     // The drawable is the one view this window is sure to own, so its window is the one to watch.

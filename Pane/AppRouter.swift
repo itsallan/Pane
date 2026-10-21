@@ -120,11 +120,11 @@ final class AppRouter {
         }
     }
 
-    /// Files opened from the Files app or Finder: added to the library in place, then the first one plays.
-    func importForOpening(_ urls: [URL]) async -> MediaItem? {
+    /// Files opened from the Files app or Finder, added to the library in place.
+    func importForOpening(_ urls: [URL]) async -> [MediaItem] {
         let items = await dependencies.importForOpening(urls)
         await reloadLibraries()
-        return items.first
+        return items
     }
 
     func removeFolder(_ folder: LibraryFolder) async {

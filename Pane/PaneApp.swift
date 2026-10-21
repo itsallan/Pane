@@ -4,10 +4,16 @@ import SwiftUI
 @main
 struct PaneApp: App {
     @State private var dependencies = AppDependencies()
+    #if os(macOS)
+    @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
+    #endif
 
     var body: some Scene {
         #if os(macOS)
         libraryWindow
+            .environment(appDelegate.openedFiles)
+            // Without this, every file opened from Finder or the Dock would open another library window.
+            .handlesExternalEvents(matching: ["*"])
             .commands {
                 PlaybackCommands(dependencies: dependencies)
             }
@@ -17,6 +23,7 @@ struct PaneApp: App {
             PlayerWindow(itemID: itemID, dependencies: dependencies)
         }
         .defaultSize(width: 960, height: 540)
+        .handlesExternalEvents(matching: [])
 
         Window("Open URL", id: OpenURLWindow.id) {
             OpenURLWindow(dependencies: dependencies)
@@ -24,6 +31,7 @@ struct PaneApp: App {
         .defaultSize(width: 480, height: 360)
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
+        .handlesExternalEvents(matching: [])
         #else
         libraryWindow
         #endif

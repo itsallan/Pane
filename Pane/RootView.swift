@@ -10,6 +10,7 @@ struct RootView: View {
     @State private var router: AppRouter
     #if os(macOS)
     @Environment(\.openWindow) private var openWindow
+    @Environment(OpenedFiles.self) private var openedFiles
     #endif
 
     init(dependencies: AppDependencies) {
@@ -20,6 +21,12 @@ struct RootView: View {
     var body: some View {
         root
             .onOpenURL(perform: openFile)
+            #if os(macOS)
+            .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
+            .onChange(of: openedFiles.pending, initial: true) {
+                openFiles(openedFiles.take())
+            }
+            #endif
             .onChange(of: dependencies.libraryRevision) {
                 Task { await router.reloadLibraries() }
             }
@@ -65,9 +72,14 @@ struct RootView: View {
 
     private func openFile(_ url: URL) {
         guard url.isFileURL else { return }
+        openFiles([url])
+    }
+
+    private func openFiles(_ urls: [URL]) {
+        guard !urls.isEmpty else { return }
         Task {
-            guard let item = await router.importForOpening([url]) else { return }
-            open(item)
+            let items = await router.importForOpening(urls)
+            items.forEach(open)
         }
     }
 }
