@@ -19,6 +19,9 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private let broadcast = StateBroadcast()
     private let capabilitiesObserver: any NSObjectProtocol
     private let captureDirectory: URL
+    private let servers: (any NetworkServerRepository)?
+    private let credentials: (any CredentialStore)?
+    private let responder: LoginResponder
 
     private var state = PlaybackState()
     private var location: MediaLocation?
@@ -38,11 +41,21 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private var pendingSlave: (title: String, existingIDs: Set<MediaTrack.ID>)?
     private var slaveTitles: [MediaTrack.ID: String] = [:]
     private var isClosed = false
+    private var share: (server: NetworkServer.ID, login: UUID)?
 
-    init(drawable: VideoDrawable?, subtitleStyle: SubtitleStyle = SubtitleStyle()) {
+    init(
+        drawable: VideoDrawable?,
+        subtitleStyle: SubtitleStyle = SubtitleStyle(),
+        servers: (any NetworkServerRepository)? = nil,
+        credentials: (any CredentialStore)? = nil
+    ) {
         let options = subtitleStyle.libraryOptions
         // initWithOptions creates a private libvlc instance, which costs memory; only pay for it when the style needs one.
         player = options.isEmpty ? VLCMediaPlayer() : VLCMediaPlayer(options: options)
+        // Login dialogs are per libvlc instance, so a private instance needs its own responder.
+        responder = options.isEmpty ? .shared : LoginResponder(library: player.libraryInstance)
+        self.servers = servers
+        self.credentials = credentials
         player.currentSubTitleFontScale = subtitleStyle.fontScale
         // VLCKit interpolates time on a main run loop timer that defaults to 1 s; 4 Hz keeps the scrubber smooth.
         player.timeChangeUpdateInterval = 0.25
@@ -76,6 +89,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         player.delegate = nil
         player.stop()
         location?.relinquish()
+        endShareLogin()
         bridge.finish()
         broadcast.finish()
         failPendingCaptures()
@@ -87,13 +101,19 @@ public actor VLCPlaybackEngine: PlaybackEngine {
 
     public func load(_ source: MediaSource) async throws(PlaybackError) {
         guard !isClosed else { return }
-        let location = try MediaLocation(source)
+        let resolved = try await resolveShare(for: source)
+        guard !isClosed else { return }
+        let location = try MediaLocation(source, share: resolved?.address)
         guard let media = location.makeMedia() else {
             location.relinquish()
             throw .playbackFailure(isRemote: location.isRemote)
         }
         self.location?.relinquish()
         self.location = location
+        endShareLogin()
+        if let resolved {
+            share = (resolved.server.id, responder.begin(host: resolved.server.host, credential: resolved.credential))
+        }
 
         failure = nil
         isInputOpen = false
@@ -292,6 +312,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         player.stop()
         location?.relinquish()
         location = nil
+        endShareLogin()
         bridge.finish()
         failPendingCaptures()
         state = PlaybackState()
@@ -302,14 +323,33 @@ public actor VLCPlaybackEngine: PlaybackEngine {
 
 extension VLCPlaybackEngine {
     /// Creates the engine together with the view VLC renders into. Hand the view to `VideoSurface`.
+    /// `servers` and `credentials` let it open `.networkShare` sources; without them, shares fail with `.unknownServer`.
     @MainActor
-    public static func makeWithSurface(subtitleStyle: SubtitleStyle = SubtitleStyle()) -> (engine: VLCPlaybackEngine, drawable: VideoDrawable) {
+    public static func makeWithSurface(
+        subtitleStyle: SubtitleStyle = SubtitleStyle(),
+        servers: (any NetworkServerRepository)? = nil,
+        credentials: (any CredentialStore)? = nil
+    ) -> (engine: VLCPlaybackEngine, drawable: VideoDrawable) {
         let drawable = VideoDrawable()
-        return (VLCPlaybackEngine(drawable: drawable, subtitleStyle: subtitleStyle), drawable)
+        let engine = VLCPlaybackEngine(drawable: drawable, subtitleStyle: subtitleStyle, servers: servers, credentials: credentials)
+        return (engine, drawable)
     }
 }
 
 private extension VLCPlaybackEngine {
+    func resolveShare(for source: MediaSource) async throws(PlaybackError) -> (server: NetworkServer, address: ShareAddress, credential: NetworkCredential?)? {
+        guard case .networkShare(let id, let path) = source else { return nil }
+        guard let server = try? await servers?.server(withID: id) else { throw .unknownServer(id) }
+        let credential = try? await credentials?.credential(for: id)
+        return (server, try ShareAddress(server: server, path: path, credential: credential), credential)
+    }
+
+    func endShareLogin() {
+        guard let share else { return }
+        responder.end(share.login)
+        self.share = nil
+    }
+
     var isSeekableNow: Bool {
         isInputOpen && (vlcState == .playing || vlcState == .paused) && player.isSeekable
     }
@@ -362,7 +402,11 @@ private extension VLCPlaybackEngine {
             refreshChapters()
             applyPendingSeek()
         case .error:
-            failure = .playbackFailure(isRemote: location?.isRemote ?? true)
+            if let share, responder.wasRejected(share.login) {
+                failure = .authenticationRequired(server: share.server)
+            } else {
+                failure = .playbackFailure(isRemote: location?.isRemote ?? true)
+            }
         case .stopped:
             // A stop before the input ever opened is a load that went nowhere, not an ending.
             if isInputOpen, failure == nil {

@@ -39,11 +39,16 @@ struct StateBroadcastTests {
 }
 
 struct MediaLocationTests {
-    @Test func networkSharesWaitForTheBrowser() {
-        let server = UUID()
-        #expect(throws: PlaybackError.unknownServer(server)) {
-            try MediaLocation(.networkShare(server: server, path: "/movie.mkv"))
+    @Test func networkSharesNeedTheirResolvedAddress() throws {
+        let server = NetworkServer(kind: .smb, host: "nas.local", displayName: "NAS", requiresCredentials: false)
+        let source = MediaSource.networkShare(server: server.id, path: "/movie.mkv")
+        #expect(throws: PlaybackError.unknownServer(server.id)) {
+            try MediaLocation(source)
         }
+
+        let location = try MediaLocation(source, share: ShareAddress(server: server, path: "/movie.mkv", credential: nil))
+        #expect(location.url.absoluteString == "smb://nas.local/movie.mkv")
+        #expect(location.isRemote)
     }
 
     @Test func garbageBookmarkIsUnresolvable() {

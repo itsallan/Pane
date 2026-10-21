@@ -5,8 +5,10 @@ import Foundation
 struct MediaLocation: Sendable {
     let url: URL
     private let isSecurityScoped: Bool
+    private var shareOptions: [String: String] = [:]
 
-    init(_ source: MediaSource) throws(PlaybackError) {
+    /// A `.networkShare` needs its `share`, which the caller resolves from the server record and credential store.
+    init(_ source: MediaSource, share: ShareAddress? = nil) throws(PlaybackError) {
         switch source {
         case .stream(let url):
             self.url = url
@@ -24,8 +26,10 @@ struct MediaLocation: Sendable {
             self.url = url
             isSecurityScoped = url.startAccessingSecurityScopedResource()
         case .networkShare(let server, _):
-            // Shares need the server record and its credential, which arrive with the network browser.
-            throw .unknownServer(server)
+            guard let share else { throw .unknownServer(server) }
+            url = share.url
+            shareOptions = share.options
+            isSecurityScoped = false
         }
     }
 
@@ -39,6 +43,7 @@ struct MediaLocation: Sendable {
     func makeMedia() -> VLCMedia? {
         guard let media = VLCMedia(url: url) else { return nil }
         media.addOptions(MediaOptions.options(isRemote: isRemote))
+        media.addOptions(shareOptions)
         // scaletempo keeps the pitch at any rate. It's libvlc's default; the speed control depends on it, so say so.
         media.addOption(":audio-time-stretch")
         return media
