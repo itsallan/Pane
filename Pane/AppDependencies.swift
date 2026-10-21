@@ -39,10 +39,11 @@ final class AppDependencies {
         progress = SwiftDataProgressRepository(modelContainer: container)
         preferences = UserDefaultsPreferencesRepository()
         importer = BookmarkImporter(library: store)
-        thumbnails = VLCThumbnailProvider()
-        servers = SwiftDataNetworkServerRepository(modelContainer: container)
+        let serverStore = SwiftDataNetworkServerRepository(modelContainer: container)
+        servers = serverStore
         let keychain = KeychainCredentialStore()
         credentials = keychain
+        thumbnails = VLCThumbnailProvider(servers: serverStore, credentials: keychain)
         streamHistory = SwiftDataStreamHistoryRepository(modelContainer: container)
         #if DEBUG
         networkBrowser = DemoNetwork.isEnabled ? DemoNetwork.browser(credentials: keychain) : VLCNetworkBrowser(credentials: keychain)

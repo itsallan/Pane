@@ -26,11 +26,20 @@ public actor VLCThumbnailProvider: ThumbnailProvider {
     private static let bucketSeconds: Int64 = 5
 
     private let directory: URL
+    private let servers: (any NetworkServerRepository)?
+    private let credentials: (any CredentialStore)?
     private var index: [Key: URL] = [:]
     private var requests: [Key: Request] = [:]
 
-    public init(directory: URL = .cachesDirectory.appending(path: "Thumbnails", directoryHint: .isDirectory)) {
+    /// `servers` and `credentials` let it open `.networkShare` sources; without them, shares fail with `.unknownServer`.
+    public init(
+        directory: URL = .cachesDirectory.appending(path: "Thumbnails", directoryHint: .isDirectory),
+        servers: (any NetworkServerRepository)? = nil,
+        credentials: (any CredentialStore)? = nil
+    ) {
         self.directory = directory
+        self.servers = servers
+        self.credentials = credentials
     }
 
     public func thumbnail(for source: MediaSource, at position: Duration, maxPixelSize: Int) async throws(PlaybackError) -> URL {
@@ -92,13 +101,19 @@ private extension VLCThumbnailProvider {
 
     func render(_ key: Key, source: MediaSource) async -> Result<URL, PlaybackError> {
         defer { requests[key] = nil }
+        let resolved: ResolvedShare?
         let location: MediaLocation
         do {
-            location = try MediaLocation(source)
+            resolved = try await ResolvedShare(source, servers: servers, credentials: credentials)
+            location = try MediaLocation(source, share: resolved?.address)
         } catch {
             return .failure(error)
         }
         defer { location.relinquish() }
+        // The thumbnailer runs on the shared libvlc instance, whose responder would otherwise hand this
+        // share's login prompt to whichever playback request happens to be open.
+        let login = resolved.map { LoginResponder.shared.begin(host: $0.server.host, credential: $0.credential) }
+        defer { login.map(LoginResponder.shared.end) }
         guard let media = location.makeMedia(),
               (try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)) != nil
         else {

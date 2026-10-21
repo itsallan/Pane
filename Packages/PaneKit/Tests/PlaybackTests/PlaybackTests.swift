@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import PlaybackTesting
 import Testing
 @testable import Playback
 
@@ -113,5 +114,22 @@ struct VLCThumbnailProviderTests {
         await #expect(throws: PlaybackError.unresolvableBookmark) {
             try await provider.thumbnail(for: .file(bookmark: Data()), at: .seconds(12), maxPixelSize: 160)
         }
+    }
+
+    @Test func sharesWithoutAKnownServerFailCleanly() async {
+        let directory = URL.temporaryDirectory.appending(path: UUID().uuidString)
+        let server = NetworkServer(kind: .smb, host: "nas.local", displayName: "NAS", requiresCredentials: false)
+        let source = MediaSource.networkShare(server: server.id, path: "/movie.mkv")
+
+        let unwired = VLCThumbnailProvider(directory: directory)
+        await #expect(throws: PlaybackError.unknownServer(server.id)) {
+            try await unwired.thumbnail(for: source, at: .seconds(12), maxPixelSize: 160)
+        }
+
+        let forgotten = VLCThumbnailProvider(directory: directory, servers: InMemoryNetworkServerRepository())
+        await #expect(throws: PlaybackError.unknownServer(server.id)) {
+            try await forgotten.thumbnail(for: source, at: .seconds(12), maxPixelSize: 160)
+        }
+        #expect(!FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)))
     }
 }

@@ -134,7 +134,7 @@ public struct PlaybackState: Sendable, Equatable {
 - **Subtitle style is split by when libvlc reads it.** Text scale is a player property and changes live. Background and margin are freetype and subpicture options that libvlc reads once, when a video output starts, from the libvlc instance. So `makeWithSurface(subtitleStyle:)` builds the player on a private instance carrying those options, and a change waits for the next player. The feature previews all three over the paused frame and says which ones wait.
 - **Thumbnails are a separate protocol, `ThumbnailProvider`.** `func thumbnail(for: MediaSource, at: Duration, maxPixelSize: Int) async throws(PlaybackError) -> URL`.
   - It is separate from the engine because it has a different lifecycle (Library uses it for posters too) and has to run on its own VLC media instance so it never disturbs playback.
-  - `VLCThumbnailProvider` wraps VLC's thumbnailer, rounds requests down to 5-second buckets, and caches JPEGs on disk under Caches, keyed by source and bucket. An in-memory index sits in the actor.
+  - `VLCThumbnailProvider` wraps VLC's thumbnailer, rounds requests down to 5-second buckets, and caches JPEGs on disk under Caches, keyed by source and bucket. An in-memory index sits in the actor. It resolves `.networkShare` sources against the same server repository and credential store as the engine, with the credential in per-media options.
   - While the user scrubs, `PlayerModel` cancels the previous request before starting the next. The provider also coalesces identical in-flight requests.
 
 ### State: AsyncStream at the boundary, `@Observable` in the feature

@@ -101,7 +101,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
 
     public func load(_ source: MediaSource) async throws(PlaybackError) {
         guard !isClosed else { return }
-        let resolved = try await resolveShare(for: source)
+        let resolved = try await ResolvedShare(source, servers: servers, credentials: credentials)
         guard !isClosed else { return }
         let location = try MediaLocation(source, share: resolved?.address)
         guard let media = location.makeMedia() else {
@@ -337,13 +337,6 @@ extension VLCPlaybackEngine {
 }
 
 private extension VLCPlaybackEngine {
-    func resolveShare(for source: MediaSource) async throws(PlaybackError) -> (server: NetworkServer, address: ShareAddress, credential: NetworkCredential?)? {
-        guard case .networkShare(let id, let path) = source else { return nil }
-        guard let server = try? await servers?.server(withID: id) else { throw .unknownServer(id) }
-        let credential = try? await credentials?.credential(for: id)
-        return (server, try ShareAddress(server: server, path: path, credential: credential), credential)
-    }
-
     func endShareLogin() {
         guard let share else { return }
         responder.end(share.login)

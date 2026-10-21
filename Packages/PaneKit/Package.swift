@@ -44,7 +44,7 @@ let package = Package(
         .target(name: "PlaybackTesting", dependencies: ["Domain"], swiftSettings: swiftSettings),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain", "PlaybackTesting"], swiftSettings: swiftSettings),
-        .testTarget(name: "PlaybackTests", dependencies: ["Playback"], swiftSettings: swiftSettings),
+        .testTarget(name: "PlaybackTests", dependencies: ["Playback", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "DataTests", dependencies: ["Data", "Domain"], swiftSettings: swiftSettings),
         .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], swiftSettings: swiftSettings),
         .testTarget(name: "PlayerFeatureTests", dependencies: ["PlayerFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
