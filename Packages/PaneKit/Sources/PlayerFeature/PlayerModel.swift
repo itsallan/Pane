@@ -275,6 +275,19 @@ public final class PlayerModel {
         }
     }
 
+    public var speed: Double {
+        get { rate }
+        set { setRate(newValue) }
+    }
+
+    public var fillsScreen: Bool {
+        get { videoScaling == .fill }
+        set {
+            guard newValue != fillsScreen else { return }
+            toggleVideoScaling()
+        }
+    }
+
     public func toggleVideoScaling() {
         let next: VideoScaling = videoScaling == .fit ? .fill : .fit
         videoScaling = next
