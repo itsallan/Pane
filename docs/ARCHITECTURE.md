@@ -13,25 +13,26 @@ Decisions made before the first line of code, and why. When code disagrees with 
 ## Module graph
 
 ```
-                      App targets (iOS/iPadOS, macOS)
-        ┌──────────────┬──────────────┼──────────────┬───────────────┐
-        ▼              ▼              ▼              ▼               ▼
-   PlayerFeature  LibraryFeature  SettingsFeature  Playback         Data
-        │              │              │            (VLCKit)   (SwiftData, Keychain)
-        ├──────────────┴──────┬───────┘              │               │
-        ▼                     ▼                      │               │
-   DesignSystem             Domain ◀─────────────────┴───────────────┘
-                              ▲
-                       PlaybackTesting  (tests and #Preview only)
+                              App targets (iOS/iPadOS, macOS)
+        ┌──────────────┬──────────────┬──────┴───────┬──────────────┬───────────────┐
+        ▼              ▼              ▼              ▼              ▼               ▼
+   PlayerFeature  LibraryFeature  NetworkFeature  SettingsFeature  Playback        Data
+        │              │              │              │          (VLCKit)     (SwiftData, Keychain)
+        └──────────────┴──────┬───────┴──────────────┘              │               │
+                ┌─────────────┴─────────────┐                       │               │
+                ▼                           ▼                       │               │
+          DesignSystem                   Domain ◀───────────────────┴───────────────┘
+                                            ▲
+                                     PlaybackTesting  (tests and #Preview only)
 ```
 
 Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
 
 **Domain** (Foundation only)
-- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `SubtitleStyle`, `PlaybackError`.
-- Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`, `MediaImporter`.
+- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `RecentStream`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `SubtitleStyle`, `PlaybackError`.
+- Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `NetworkServerRepository`, `StreamHistoryRepository`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`, `MediaImporter`.
 - `MediaImporter` exists so LibraryFeature can add files and folders without seeing how bookmarks are made; Data implements it.
-- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`, `ParseSubtitleCues`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
+- Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`, `ParseSubtitleCues`, `ParseStreamURL`, `AddToLibrary`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
 
 **Playback** (the only module that imports VLCKit, through `@preconcurrency import VLCKit`)
 - Public: `VLCPlaybackEngine`, `VLCThumbnailProvider`, `VLCNetworkBrowser`, `VideoSurface: View`, and a `@MainActor` factory that returns the engine and its surface together.
@@ -40,11 +41,12 @@ Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so mod
 **Data**
 - SwiftData `@Model` records, internal, mapped to Domain entities at the repository edge. `@ModelActor` repositories keep `ModelContext` off main.
 - `KeychainCredentialStore: CredentialStore`. `ModelContainer` factory (on disk, or in memory for tests). Security-scoped bookmarks.
+- `SwiftDataNetworkServerRepository` and `SwiftDataStreamHistoryRepository` share the library store. History keeps the 30 most recent URLs.
 
 **DesignSystem**
 - Color and typography tokens, Liquid Glass styles, `Scrubber` (with chapter notches and a thumbnail slot), `TransportButton`, `TrackPicker`. No Domain types beyond plain values.
 
-**PlayerFeature, LibraryFeature, SettingsFeature**
+**PlayerFeature, LibraryFeature, NetworkFeature, SettingsFeature**
 - Each is a screen view plus a `@MainActor @Observable final class` model, given Domain protocols and use cases through `init`. Navigation goes out through closures (`onOpen: (MediaItem) -> Void`). No feature imports another.
 
 **PlaybackTesting**
@@ -75,6 +77,13 @@ public struct NetworkServer: Sendable, Hashable, Identifiable {
 - The engine and `VLCNetworkBrowser` receive the `CredentialStore` at construction. When they open a share, they look up the credential on their own executor and pass it as per-media VLC options (`:smb-user`, `:smb-pwd`, `:sftp-user`...), not in the MRL. VLC login dialogs (`VLCDialogProvider`) are answered from the same store.
 - If a credential is missing or rejected, the result is `.authenticationRequired(server:)`: thrown from `NetworkBrowser`, and as `.failed` in the playback state. The feature asks the user, saves the credential through the store, and retries.
 - `NetworkBrowser` covers discovery (`servers() -> AsyncStream<[NetworkServer]>`, from `VLCMediaDiscoverer` for SMB and UPnP) and listing (`contents(of:path:) async throws(PlaybackError) -> [NetworkEntry]`). SFTP servers are added by hand because there's no discovery protocol.
+- `VLCNetworkBrowser` starts every LAN discoverer libvlc offers (`dsm`, `upnp`, `Bonjour`, `sap` in 4.0.0-a25) and keeps what has an `smb`, `sftp` or `upnp` MRL. A discovered server's ID is a hash of kind, host and port, so it's the same on every launch and matches a saved copy. Listing a folder is a parse of its MRL with `doInteract`; the parsed subitems are the entries. A failed parse is `.authenticationRequired` if the login was refused, otherwise `.serverUnreachable`.
+- UPnP entries are addressed by the full item URL the media server hands out, not a path. A UPnP root can only be listed while discovery has it.
+- libvlc takes one dialog handler per instance, so `LoginResponder` exists once per `VLCLibrary`: a shared one, plus one for each player built on a private instance (see subtitle style). Each open registers a request with the host and the credential already looked up; the first login prompt for it is answered, a second one means the share refused it.
+- **The feature side.** `NetworkModel` lists saved servers and nearby ones that aren't saved. `ShareBrowserModel` lists one folder. On `.authenticationRequired` it raises a `SignInRequest`, keyed by server so a rejected password updates the open sheet instead of closing it. A successful sign-in saves the credential to the store and the server to `NetworkServerRepository`.
+- **Opening is adding.** A stream or a share file joins the library through `AddToLibrary`, which returns the existing item for a source it already has. That gives streams and shares resume, Recents and a Mac player window (which loads its item by ID). Opening a share file also saves its server, because the engine finds servers by ID.
+- `ParseStreamURL` accepts http(s), rtsp(s), rtmp(s), rtp, udp and mms, assumes https when there's no scheme, and refuses a link with a password in it, since the URL is stored in the library and history.
+- Local network access: iOS needs `NSLocalNetworkUsageDescription` and `NSBonjourServices` (`_smb._tcp`, `_sftp-ssh._tcp`). UPnP discovery uses SSDP multicast, which on a device needs the multicast networking entitlement that Apple grants on request; the simulator and the Mac don't. The Mac sandbox needs the outgoing connections entitlement.
 
 ## PlaybackEngine
 
@@ -175,6 +184,8 @@ VLC quirks handled at the boundary:
 - **Swapping media sends no state change.** Loading over a playing media keeps the player in `playing` with no stop or opening events, so the engine seeds its state from the player's at `load`.
 - **Seeks before the input is open are dropped.** `load` starts playback (libvlc has no prepare step); a seek before the input is open and seekable is held and applied once it is.
 - **Seekability and time.** Seekability changes arrive only as a notification, and time ticks come from a main run loop timer (set to 4 Hz). Both just yield events into the bridge.
+- **The parser timeout is in microseconds.** `VLCMediaParser(library:timeout:)` documents milliseconds, but a25 passes the value straight through as microseconds: 15000 timed out after 15 ms.
+- **A share that never opens still reports itself open.** The capabilities notification arrives before libsmb2 gives up on an unresolvable host, so the engine treats an error on a share before any track appears as `.serverUnreachable`.
 - **Delegate names change between VLCKit 4 pre-releases.** The bridge is the only file that has to match them. Pin a version and check the headers on upgrade.
 
 ## Video surface
@@ -200,20 +211,22 @@ Routing is owned by `AppRouter`, an `@MainActor @Observable` type in the app tar
 
 | Platform | Root | Player presentation |
 |---|---|---|
-| iPad | `NavigationSplitView`: sources sidebar (Library, Recents, imported folders, later Network), library grid as detail | `fullScreenCover` |
+| iPad | `NavigationSplitView`: sources sidebar (Library, Recents, Network, imported folders), library grid or network stack as detail | `fullScreenCover` |
 | macOS | `NavigationSplitView`, same columns | `WindowGroup(for: MediaItem.ID.self)` via `openWindow`; transport in `.commands` |
-| iPhone | `TabView` (Library, Recents), one `NavigationStack` per tab; folders are listed inside Library | `fullScreenCover` |
+| iPhone | `TabView` (Library, Recents, Network), one `NavigationStack` per tab; folders are listed inside Library | `fullScreenCover` |
 
 - **iPhone vs iPad is chosen by idiom at launch, not by size class.** A large iPhone in landscape reports regular width, and swapping roots on rotation would throw away the stack path. On iPad, the split view already collapses into a stack in compact multitasking.
 - **Mac players are windows** because people play several files side by side and expect to resize and close them like documents.
 - **Files open in place.** The app declares video document types with `LSSupportsOpeningDocumentsInPlace`, so Files and Finder hand over the original URL. `AppRouter` imports it through `MediaImporter` (which returns the existing item for a file already in the library) and plays it.
+- **The network stack is the same on every root.** `NetworkStack` (app target) holds a `NavigationStack` over `AppRouter.networkPath` and resolves `NetworkRoute` (`.openURL`, `.folder`). Folder models are kept per route while the route is on the path, so going back doesn't re-list the share.
 - **Library models live in the router**, one per scope, so switching sidebar items or tabs keeps each scope's sort, filter and posters. Closing a player bumps `AppDependencies.libraryRevision` and every window reloads.
 
 ## Testing
 
 - Feature models: Swift Testing against `PlaybackTesting` fakes, with scripted state sequences for scrubbing, stale-time suppression, A-B loop UI and credential prompts.
 - Use cases: resume thresholds at 29 s, 30 s, 95% and unknown duration. The throttle uses an injected clock. Track picking covers each subtitle mode, forced tracks and language aliases.
-- Repositories: an in-memory `ModelContainer`. `KeychainCredentialStore` runs on macOS against a test-only access group.
+- Repositories: an in-memory `ModelContainer`. `KeychainCredentialStore` tests skip themselves when the runner has no keychain entitlement, which is the case for unsigned package test runners on both macOS and the simulator; the store is exercised in the app.
+- Network screens without a NAS: a Debug build launched with `-PaneDemoNetwork YES` browses fake servers from `PlaybackTesting` (password "pane") while still saving logins to the real keychain.
 - `VLCPlaybackEngine` and `VLCThumbnailProvider`: thin macOS integration tests with a short bundled clip that has chapters and two audio tracks. These are the only tests that load VLCKit.
 
 ## Open risks
