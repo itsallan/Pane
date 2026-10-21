@@ -5,11 +5,16 @@ import Observation
 @MainActor
 @Observable
 public final class PlayerModel {
-    static let skipInterval = Duration.seconds(10)
+    public static let skipInterval = Duration.seconds(10)
     static let autoHideDelay = Duration.seconds(3)
     static let seekTolerance = Duration.seconds(1)
     static let seekTimeout = Duration.seconds(2)
     static let boostedRate = 2.0
+    static let rateStep = 0.25
+    static let volumeStep = 0.1
+    static let shuttleRates = [1.5, 2.0, 3.0]
+    static let shuttleRepeatWindow = Duration.seconds(1)
+    static let maxShuttleBackStep = 3
     public static let rates = 0.5...3.0
     static let thumbnailPixelSize = 320
 
@@ -60,6 +65,8 @@ public final class PlayerModel {
     private var pendingSeek: (target: Duration, deadline: Duration)?
     private var isAdjustingVolume = false
     private var rateBeforeBoost = 1.0
+    private var rateBeforeShuttle: Double?
+    private var lastShuttleBack: (step: Int, at: Duration)?
     // Until the resume seek lands, the engine reports the pre-seek time, which must neither show nor be saved.
     private var resumeTarget: Duration?
     private var resumeDeadline: Duration?
@@ -248,6 +255,11 @@ public final class PlayerModel {
         }
     }
 
+    public func pause() {
+        revealControls()
+        Task { [engine] in await engine.pause() }
+    }
+
     public func skip(by offset: Duration) {
         revealControls()
         seek(to: position + offset)
@@ -271,6 +283,7 @@ public final class PlayerModel {
     public func setRate(_ rate: Double) {
         let rate = min(max(rate, Self.rates.lowerBound), Self.rates.upperBound)
         isSpeedBoosted = false
+        rateBeforeShuttle = nil
         self.rate = rate
         Task { [engine] in await engine.setRate(rate) }
     }
@@ -455,6 +468,71 @@ extension PlayerModel {
     }
 }
 
+// MARK: - Keyboard
+
+extension PlayerModel {
+    public var canSlowDown: Bool { rate > Self.rates.lowerBound }
+    public var canSpeedUp: Bool { rate < Self.rates.upperBound }
+
+    /// Moves to the next quarter step, so an odd rate from the slider lands back on the grid.
+    public func slowDown() {
+        setRate(((rate - Self.rateStep) / Self.rateStep).rounded(.up) * Self.rateStep)
+    }
+
+    public func speedUp() {
+        setRate(((rate + Self.rateStep) / Self.rateStep).rounded(.down) * Self.rateStep)
+    }
+
+    public func raiseVolume() {
+        revealControls()
+        setVolume(((volume + Self.volumeStep) * 10).rounded() / 10)
+    }
+
+    public func lowerVolume() {
+        revealControls()
+        setVolume(((volume - Self.volumeStep) * 10).rounded() / 10)
+    }
+
+    /// L: plays, and each further press while playing goes faster.
+    public func shuttleForward() {
+        lastShuttleBack = nil
+        guard isPlaybackActive, status != .ended else {
+            togglePlayback()
+            return
+        }
+        revealControls()
+        guard let next = Self.shuttleRates.first(where: { $0 > rate }) else { return }
+        let before = rateBeforeShuttle ?? rate
+        setRate(next)
+        rateBeforeShuttle = before
+    }
+
+    /// K: pauses and drops any shuttle speed.
+    public func shuttleStop() {
+        lastShuttleBack = nil
+        endShuttle()
+        pause()
+    }
+
+    // libvlc can't play in reverse, so J jumps back instead, doubling the jump on each press that follows quickly.
+    public func shuttleBackward() {
+        endShuttle()
+        let now = elapsed()
+        var step = 0
+        if let lastShuttleBack, now - lastShuttleBack.at <= Self.shuttleRepeatWindow {
+            step = min(lastShuttleBack.step + 1, Self.maxShuttleBackStep)
+        }
+        lastShuttleBack = (step, now)
+        skip(by: .zero - Self.skipInterval * (1 << step))
+    }
+
+    private func endShuttle() {
+        guard let rateBeforeShuttle else { return }
+        self.rateBeforeShuttle = nil
+        setRate(rateBeforeShuttle)
+    }
+}
+
 // MARK: - Scene phase
 
 extension PlayerModel {
@@ -487,8 +565,17 @@ extension PlayerModel {
     }
 
     public func revealControls() {
-        areControlsVisible = true
+        // Called on every pointer move on the Mac, so skip the write when nothing changes.
+        if !areControlsVisible {
+            areControlsVisible = true
+        }
         scheduleAutoHide()
+    }
+
+    public func pointerDidLeave() {
+        guard areControlsVisible, canAutoHide else { return }
+        hideTask?.cancel()
+        areControlsVisible = false
     }
 
     private var canAutoHide: Bool {
