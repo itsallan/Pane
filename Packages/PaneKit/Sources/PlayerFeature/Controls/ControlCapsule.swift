@@ -24,6 +24,7 @@ struct ControlCapsule: View {
                     .padding(.top, 8)
                     HStack(spacing: 4) {
                         playPause
+                        frameStep
                         scrubber
                         tracks
                         options
@@ -34,6 +35,7 @@ struct ControlCapsule: View {
             } else {
                 HStack(spacing: 4) {
                     playPause
+                    frameStep
                     if showsSkipButtons {
                         skip(by: .zero - PlayerModel.skipInterval)
                         skip(by: PlayerModel.skipInterval)
@@ -75,6 +77,14 @@ struct ControlCapsule: View {
     private var playPauseSymbol: String {
         if model.isPlaybackActive { return "pause.fill" }
         return model.status == .ended ? "arrow.counterclockwise" : "play.fill"
+    }
+
+    @ViewBuilder
+    private var frameStep: some View {
+        if model.canStepFrame {
+            TransportButton("Next Frame", systemImage: "forward.frame.fill", action: model.stepFrame)
+                .transition(.opacity)
+        }
     }
 
     private func skip(by offset: Duration) -> some View {

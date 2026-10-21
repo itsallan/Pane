@@ -242,6 +242,15 @@ public final class PlayerModel {
         seek(to: position + offset)
     }
 
+    public var canStepFrame: Bool { status == .paused && isSeekable }
+
+    /// Forward only: libvlc has no previous-frame.
+    public func stepFrame() {
+        guard canStepFrame else { return }
+        revealControls()
+        Task { [engine] in await engine.stepFrame() }
+    }
+
     public func seek(toChapter chapter: Chapter) {
         revealControls()
         beginPendingSeek(to: chapter.start)

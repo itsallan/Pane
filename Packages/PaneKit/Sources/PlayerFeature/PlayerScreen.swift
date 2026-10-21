@@ -65,6 +65,11 @@ public struct PlayerScreen<Surface: View>: View {
             model.skip(by: PlayerModel.skipInterval)
             return .handled
         }
+        .onKeyPress(".") {
+            guard model.canStepFrame else { return .ignored }
+            model.stepFrame()
+            return .handled
+        }
         #endif
     }
 
