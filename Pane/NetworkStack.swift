@@ -10,22 +10,12 @@ struct NetworkStack: View {
     var body: some View {
         NavigationStack(path: $router.networkPath) {
             NetworkScreen(model: router.networkModel)
-                .navigationDestination(for: NetworkRoute.self, destination: destination)
+                .navigationDestination(for: NetworkRoute.self) { route in
+                    NetworkDestination(route: route, router: router, onOpenStream: openStream, onOpenFile: openFile)
+                }
         }
         .onChange(of: router.networkPath) {
             router.networkPathDidChange()
-        }
-    }
-
-    @ViewBuilder
-    private func destination(_ route: NetworkRoute) -> some View {
-        switch route {
-        case .openURL:
-            OpenURLScreen(model: router.openURLModel, onOpen: openStream)
-        case .folder:
-            if let model = router.browserModel(for: route) {
-                ShareBrowserScreen(model: model, onOpen: openFile)
-            }
         }
     }
 
