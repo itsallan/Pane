@@ -292,9 +292,10 @@ public final class PlayerModel {
         }
     }
 
+    /// For sliders: snaps to 0.05 so a drag lands on rates people can read.
     public var speed: Double {
         get { rate }
-        set { setRate(newValue) }
+        set { setRate((newValue * 20).rounded() / 20) }
     }
 
     public var fillsScreen: Bool {

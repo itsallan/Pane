@@ -7,7 +7,7 @@ struct VolumeSection: View {
     var body: some View {
         OptionsSection(title: "Volume") {
             HStack {
-                Slider(value: $model.volumeLevel, in: 0...2, step: 0.05) {
+                Slider(value: $model.volumeLevel, in: 0...2) {
                     Text("Volume")
                 } minimumValueLabel: {
                     Image(systemName: "speaker.fill")

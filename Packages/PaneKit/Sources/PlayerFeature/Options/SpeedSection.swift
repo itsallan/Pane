@@ -7,7 +7,7 @@ struct SpeedSection: View {
     var body: some View {
         OptionsSection(title: "Speed") {
             HStack {
-                Slider(value: $model.speed, in: PlayerModel.rates, step: 0.05) {
+                Slider(value: $model.speed, in: PlayerModel.rates) {
                     Text("Speed")
                 } minimumValueLabel: {
                     Text(PlayerModel.rates.lowerBound.rateLabel)
