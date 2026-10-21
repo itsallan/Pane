@@ -20,6 +20,7 @@ let package = Package(
         .library(name: "PlayerFeature", targets: ["PlayerFeature"]),
         .library(name: "LibraryFeature", targets: ["LibraryFeature"]),
         .library(name: "SettingsFeature", targets: ["SettingsFeature"]),
+        .library(name: "NetworkFeature", targets: ["NetworkFeature"]),
         .library(name: "PlaybackTesting", targets: ["PlaybackTesting"]),
     ],
     dependencies: [
@@ -39,6 +40,7 @@ let package = Package(
         .target(name: "PlayerFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "LibraryFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "SettingsFeature", dependencies: ["Domain", "DesignSystem"], swiftSettings: swiftSettings),
+        .target(name: "NetworkFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "PlaybackTesting", dependencies: ["Domain"], swiftSettings: swiftSettings),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain", "PlaybackTesting"], swiftSettings: swiftSettings),
@@ -47,6 +49,7 @@ let package = Package(
         .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], swiftSettings: swiftSettings),
         .testTarget(name: "PlayerFeatureTests", dependencies: ["PlayerFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "LibraryFeatureTests", dependencies: ["LibraryFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
+        .testTarget(name: "NetworkFeatureTests", dependencies: ["NetworkFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "SettingsFeatureTests", dependencies: ["SettingsFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "PlaybackTestingTests", dependencies: ["PlaybackTesting"], swiftSettings: swiftSettings),
     ]
