@@ -27,6 +27,7 @@ struct TrackSheet: View {
                         }
                     }
                     Button("Add Subtitle File…", systemImage: "plus", action: presentImporter)
+                    Button("Subtitle Style…", systemImage: "textformat.size", action: editStyle)
                 }
                 if !model.areSubtitlesOff {
                     SubtitleTimingSection(sync: model.subtitleSync, onSyncByEar: syncByEar)
@@ -53,6 +54,11 @@ struct TrackSheet: View {
     private func syncByEar() {
         model.isTrackSheetPresented = false
         model.subtitleSync.begin()
+    }
+
+    private func editStyle() {
+        model.isTrackSheetPresented = false
+        model.subtitleAppearance.beginEditing()
     }
 
     private func presentImporter() {

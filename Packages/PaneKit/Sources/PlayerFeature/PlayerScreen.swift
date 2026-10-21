@@ -27,12 +27,17 @@ public struct PlayerScreen<Surface: View>: View {
                 .accessibilityHidden(true)
             interactionLayer
                 .ignoresSafeArea()
+            if model.subtitleAppearance.isEditing {
+                SubtitleStylePreview(style: model.subtitleAppearance.style)
+                    .ignoresSafeArea()
+            }
             StatusOverlay(model: model)
             chrome
         }
         .animation(reduceMotion ? .linear(duration: 0.15) : .smooth(duration: 0.3), value: model.areControlsVisible)
         .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
         .animation(.smooth(duration: 0.3), value: model.subtitleSync.phase)
+        .animation(.smooth(duration: 0.3), value: model.subtitleAppearance.isEditing)
         .sheet(isPresented: $model.isTrackSheetPresented) {
             TrackSheet(model: model)
         }
@@ -87,6 +92,12 @@ public struct PlayerScreen<Surface: View>: View {
                 TopBar(title: model.title, onDismiss: onDismiss)
                     .transition(chromeTransition(edge: .top))
             }
+            // Up top, because libvlc draws subtitles along the bottom of the whole surface and the preview has to stay clear.
+            if model.subtitleAppearance.isEditing {
+                SubtitleStylePanel(appearance: model.subtitleAppearance)
+                    .padding(.top, Metrics.controlSpacing)
+                    .transition(chromeTransition(edge: .top))
+            }
             Spacer(minLength: 0)
             if model.isSpeedBoosted {
                 Label("2× Speed", systemImage: "forward.fill")
@@ -100,7 +111,7 @@ public struct PlayerScreen<Surface: View>: View {
             if model.subtitleSync.isActive {
                 SubtitleSyncPanel(sync: model.subtitleSync)
                     .transition(chromeTransition(edge: .bottom))
-            } else if model.areControlsVisible {
+            } else if model.areControlsVisible, !model.subtitleAppearance.isEditing {
                 ControlCapsule(model: model)
                     .transition(chromeTransition(edge: .bottom))
             }

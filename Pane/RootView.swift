@@ -25,6 +25,7 @@ struct RootView: View {
             }
             .task {
                 await dependencies.restoreFileAccess()
+                await dependencies.loadSubtitleStyle()
             }
             #if os(iOS)
             .fullScreenCover(item: $router.presentedSession) { session in

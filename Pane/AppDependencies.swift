@@ -13,6 +13,8 @@ final class AppDependencies {
     let importer: any MediaImporter
     let thumbnails: any ThumbnailProvider
     private let store: SwiftDataLibraryRepository
+    /// Read when a player is built, because libvlc takes part of the style only at creation.
+    private(set) var subtitleStyle = SubtitleStyle()
     /// Bumped whenever playback changes progress, so library windows know to reload.
     private(set) var libraryRevision = 0
 
@@ -39,6 +41,15 @@ final class AppDependencies {
     /// Reopens imported folders and refreshes stale bookmarks; run once at launch.
     func restoreFileAccess() async {
         try? await store.restoreFileAccess()
+    }
+
+    func loadSubtitleStyle() async {
+        subtitleStyle = (try? await preferences.subtitleStyle()) ?? SubtitleStyle()
+    }
+
+    func saveSubtitleStyle(_ style: SubtitleStyle) async {
+        subtitleStyle = style
+        try? await preferences.save(style)
     }
 
     func libraryDidChange() {

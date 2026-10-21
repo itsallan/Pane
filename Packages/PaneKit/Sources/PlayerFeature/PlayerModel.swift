@@ -39,6 +39,7 @@ public final class PlayerModel {
     }
     public var subtitleImportFailed = false
     public let subtitleSync: SubtitleSync
+    public let subtitleAppearance: SubtitleAppearance
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
@@ -85,6 +86,8 @@ public final class PlayerModel {
             resume: nil,
             recordProgress: nil,
             pickTracks: nil,
+            subtitleStyle: SubtitleStyle(),
+            saveSubtitleStyle: nil,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
             clock: clock
@@ -98,6 +101,8 @@ public final class PlayerModel {
         resume: ResumePlayback,
         saveProgress: SaveProgress<P>,
         pickTracks: PickPreferredTracks,
+        subtitleStyle: SubtitleStyle = SubtitleStyle(),
+        saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
         clock: C = ContinuousClock()
@@ -109,6 +114,8 @@ public final class PlayerModel {
             resume: resume,
             recordProgress: { progress, trigger in try? await saveProgress(progress, trigger: trigger) },
             pickTracks: pickTracks,
+            subtitleStyle: subtitleStyle,
+            saveSubtitleStyle: saveSubtitleStyle,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
             clock: clock
@@ -122,6 +129,8 @@ public final class PlayerModel {
         resume: ResumePlayback?,
         recordProgress: (@Sendable (PlaybackProgress, SaveProgressTrigger) async -> Void)?,
         pickTracks: PickPreferredTracks?,
+        subtitleStyle: SubtitleStyle,
+        saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)?,
         thumbnails: (any ThumbnailProvider)?,
         screenBrightness: (any ScreenBrightness)?,
         clock: C
@@ -129,6 +138,7 @@ public final class PlayerModel {
         self.engine = engine
         self.item = item
         subtitleSync = SubtitleSync(engine: engine)
+        subtitleAppearance = SubtitleAppearance(engine: engine, style: subtitleStyle, save: saveSubtitleStyle)
         self.title = title
         self.resume = resume
         self.recordProgress = recordProgress
@@ -142,6 +152,8 @@ public final class PlayerModel {
         brightness = originalBrightness
         subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }
         subtitleSync.onActiveChange = { [weak self] in self?.revealControls() }
+        subtitleAppearance.isPlaying = { [weak self] in self?.isPlaybackActive ?? false }
+        subtitleAppearance.onEditingChange = { [weak self] in self?.revealControls() }
     }
 
     public var failure: PlaybackError? {
@@ -437,6 +449,7 @@ extension PlayerModel {
 
     private var canAutoHide: Bool {
         isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented && !subtitleSync.isActive
+            && !subtitleAppearance.isEditing
     }
 
     private func presentationDidChange(from oldValue: Bool, to isPresented: Bool) {

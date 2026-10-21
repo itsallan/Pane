@@ -9,7 +9,7 @@ final class PlayerSession: Identifiable {
     let drawable: VideoDrawable
 
     init(item: MediaItem, dependencies: AppDependencies) {
-        let (engine, drawable) = VLCPlaybackEngine.makeWithSurface()
+        let (engine, drawable) = VLCPlaybackEngine.makeWithSurface(subtitleStyle: dependencies.subtitleStyle)
         self.drawable = drawable
         #if os(iOS)
         let brightness: (any ScreenBrightness)? = SceneScreenBrightness()
@@ -22,6 +22,8 @@ final class PlayerSession: Identifiable {
             resume: ResumePlayback(engine: engine, progress: dependencies.progress),
             saveProgress: SaveProgress(item: item.id, repository: dependencies.progress),
             pickTracks: PickPreferredTracks(engine: engine, preferences: dependencies.preferences),
+            subtitleStyle: dependencies.subtitleStyle,
+            saveSubtitleStyle: { await dependencies.saveSubtitleStyle($0) },
             thumbnails: dependencies.thumbnails,
             screenBrightness: brightness
         )
