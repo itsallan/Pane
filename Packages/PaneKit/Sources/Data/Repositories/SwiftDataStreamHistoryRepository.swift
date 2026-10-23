@@ -10,7 +10,12 @@ public actor SwiftDataStreamHistoryRepository: StreamHistoryRepository {
     public func recentStreams() async throws -> [RecentStream] {
         var descriptor = FetchDescriptor<RecentStreamRecord>(sortBy: [SortDescriptor(\.lastOpened, order: .reverse)])
         descriptor.fetchLimit = Self.limit
-        return try modelContext.fetch(descriptor).map { RecentStream(url: $0.url, lastOpened: $0.lastOpened) }
+        // Two devices can record the same URL before they sync, so keep only its latest entry.
+        var seen: Set<URL> = []
+        return try modelContext.fetch(descriptor).compactMap { record in
+            guard let url = record.url, seen.insert(url).inserted else { return nil }
+            return RecentStream(url: url, lastOpened: record.lastOpened)
+        }
     }
 
     public func record(_ url: URL, at date: Date) async throws {

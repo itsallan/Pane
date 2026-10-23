@@ -39,13 +39,14 @@ let package = Package(
         // PlaybackTesting backs the features' #Previews only; nothing outside DEBUG references it, so release builds strip it.
         .target(name: "PlayerFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "LibraryFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
-        .target(name: "SettingsFeature", dependencies: ["Domain", "DesignSystem"], swiftSettings: swiftSettings),
+        .target(name: "SettingsFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "NetworkFeature", dependencies: ["Domain", "DesignSystem", "PlaybackTesting"], swiftSettings: swiftSettings),
         .target(name: "PlaybackTesting", dependencies: ["Domain"], swiftSettings: swiftSettings),
 
         .testTarget(name: "DomainTests", dependencies: ["Domain", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "PlaybackTests", dependencies: ["Playback", "PlaybackTesting"], swiftSettings: swiftSettings),
-        .testTarget(name: "DataTests", dependencies: ["Data", "Domain"], swiftSettings: swiftSettings),
+        // The fixture is a store written by the schema before it was made CloudKit-compatible.
+        .testTarget(name: "DataTests", dependencies: ["Data", "Domain"], resources: [.copy("Fixtures")], swiftSettings: swiftSettings),
         .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], swiftSettings: swiftSettings),
         .testTarget(name: "PlayerFeatureTests", dependencies: ["PlayerFeature", "PlaybackTesting"], swiftSettings: swiftSettings),
         .testTarget(name: "LibraryFeatureTests", dependencies: ["LibraryFeature", "PlaybackTesting"], swiftSettings: swiftSettings),

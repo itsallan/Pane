@@ -5,6 +5,7 @@ import Foundation
 public struct UserDefaultsPreferencesRepository: PreferencesRepository {
     private static let key = "trackPreferences"
     private static let styleKey = "subtitleStyle"
+    private static let cloudSyncKey = "syncsWithCloud"
 
     // UserDefaults isn't Sendable, so keep the suite name and look the store up per call.
     private let suiteName: String?
@@ -39,6 +40,19 @@ public struct UserDefaultsPreferencesRepository: PreferencesRepository {
 
     public func save(_ style: SubtitleStyle) async throws {
         defaults.set(try JSONEncoder().encode(style), forKey: Self.styleKey)
+    }
+
+    public func syncsWithCloud() async -> Bool {
+        syncsWithCloudAtLaunch
+    }
+
+    public func setSyncsWithCloud(_ isOn: Bool) async {
+        defaults.set(isOn, forKey: Self.cloudSyncKey)
+    }
+
+    /// For the composition root, which has to decide before anything async can run.
+    public var syncsWithCloudAtLaunch: Bool {
+        defaults.bool(forKey: Self.cloudSyncKey)
     }
 }
 

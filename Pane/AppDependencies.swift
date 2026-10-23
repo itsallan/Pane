@@ -18,6 +18,8 @@ final class AppDependencies {
     let streamHistory: any StreamHistoryRepository
     let networkBrowser: any NetworkBrowser
     let openPlayers = OpenPlayers()
+    /// Read from the setting once, when the store opens; changing the setting applies at the next launch.
+    let cloudSync: CloudSyncStatus
     private let nowPlaying: NowPlaying
     #if os(iOS)
     private let audioSession: PlaybackAudioSession
@@ -29,9 +31,10 @@ final class AppDependencies {
     private(set) var libraryRevision = 0
 
     init() {
+        let userDefaults = UserDefaultsPreferencesRepository()
         let container: ModelContainer
         do {
-            container = try .library()
+            (container, cloudSync) = try LibraryStore.open(syncsWithCloud: userDefaults.syncsWithCloudAtLaunch)
         } catch {
             // A store that can't open (a failed migration, a full disk) shouldn't stop the app from playing files.
             do {
@@ -39,11 +42,12 @@ final class AppDependencies {
             } catch {
                 fatalError("Couldn't create even an in-memory library store: \(error)")
             }
+            cloudSync = userDefaults.syncsWithCloudAtLaunch ? .unavailable : .off
         }
         store = SwiftDataLibraryRepository(modelContainer: container)
         library = store
         progress = SwiftDataProgressRepository(modelContainer: container)
-        preferences = UserDefaultsPreferencesRepository()
+        preferences = userDefaults
         importer = BookmarkImporter(library: store)
         let serverStore = SwiftDataNetworkServerRepository(modelContainer: container)
         servers = serverStore

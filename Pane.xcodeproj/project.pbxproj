@@ -19,6 +19,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		9DAAD1F03087F0000051615D /* Pane.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Pane.xcconfig; sourceTree = "<group>"; };
 		9DAAD1B13087EC410051615D /* Pane.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Pane.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -27,6 +28,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				"Pane-iOS.entitlements",
+				"Pane-macOS.entitlements",
 			);
 			target = 9DAAD1B03087EC410051615D /* Pane */;
 		};
@@ -67,8 +70,17 @@
 			isa = PBXGroup;
 			children = (
 				9DAAD1B33087EC410051615D /* Pane */,
+				9DAAD1F13087F0000051615D /* Config */,
 				9DAAD1B23087EC410051615D /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		9DAAD1F13087F0000051615D /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				9DAAD1F03087F0000051615D /* Pane.xcconfig */,
+			);
+			path = Config;
 			sourceTree = "<group>";
 		};
 		9DAAD1B23087EC410051615D /* Products */ = {
@@ -287,6 +299,7 @@
 		};
 		9DAAD1BD3087EC420051615D /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9DAAD1F03087F0000051615D /* Pane.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -332,6 +345,7 @@
 		};
 		9DAAD1BE3087EC420051615D /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 9DAAD1F03087F0000051615D /* Pane.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;

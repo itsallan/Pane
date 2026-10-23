@@ -3,11 +3,11 @@ import SwiftData
 
 @Model
 final class ProgressRecord {
-    @Attribute(.unique) var itemID: UUID
-    var positionMilliseconds: Int64
+    var itemID = UUID()
+    var positionMilliseconds: Int64 = 0
     var durationMilliseconds: Int64?
-    var isWatched: Bool
-    var updatedAt: Date
+    var isWatched = false
+    var updatedAt = Date.distantPast
 
     init(itemID: UUID, positionMilliseconds: Int64, durationMilliseconds: Int64?, isWatched: Bool, updatedAt: Date) {
         self.itemID = itemID

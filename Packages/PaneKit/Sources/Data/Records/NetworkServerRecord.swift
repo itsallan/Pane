@@ -9,12 +9,12 @@ final class NetworkServerRecord {
         case upnp
     }
 
-    @Attribute(.unique) var id: UUID
-    var kind: Kind
-    var host: String
+    var id = UUID()
+    var kind = Kind.smb
+    var host = ""
     var port: Int?
-    var displayName: String
-    var requiresCredentials: Bool
+    var displayName = ""
+    var requiresCredentials = false
 
     init(id: UUID, kind: Kind, host: String, port: Int?, displayName: String, requiresCredentials: Bool) {
         self.id = id

@@ -42,6 +42,7 @@ Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so mod
 - SwiftData `@Model` records, internal, mapped to Domain entities at the repository edge. `@ModelActor` repositories keep `ModelContext` off main.
 - `KeychainCredentialStore: CredentialStore`. `ModelContainer` factory (on disk, or in memory for tests). Security-scoped bookmarks.
 - `SwiftDataNetworkServerRepository` and `SwiftDataStreamHistoryRepository` share the library store. History keeps the 30 most recent URLs.
+- The store can sync through CloudKit (see System integration), so the models follow CloudKit's rules.
 
 **DesignSystem**
 - Color and typography tokens, Liquid Glass styles, `Scrubber` (with chapter notches and a thumbnail slot), `TransportButton`, `TrackPicker`. No Domain types beyond plain values.
@@ -208,6 +209,29 @@ VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIVie
   - The capability survives `load`, because VLC can keep its video output across media and then never reports ready again. The button also needs a video track.
   - 4.0.0-a25's macOS slice has no PiP controller, so on the Mac the flag stays false. The iPhone simulator reports PiP unsupported; the iPad simulator and devices support it.
   - Backgrounding pauses video unless PiP is active. Audio-only media keeps playing.
+
+## System integration
+
+All of this is app-target glue except where noted. `OpenPlayers` and `NowPlaying` are told about every `PlayerSession` when it opens and closes, from `AppRouter` on iOS and `PlayerWindow` on the Mac.
+
+**Audio session (iOS).** `PlaybackAudioSession` sets `.playback`, `.moviePlayback`, `.longFormVideo` at launch. libvlc's audio output sets the same values whenever it starts (`avaudiosession_common.m`), and each of those calls posts a `categoryChange` route change, which is where a debug assertion checks that nothing drifted. `UIBackgroundModes` has `audio`.
+- Interruptions pause every playing session. When the interruption ends, they resume only if the system passes `.shouldResume` (a call that ends does; an alarm or another app's audio doesn't).
+- `oldDeviceUnavailable` (headphones unplugged, AirPods out) pauses.
+- When the scene backgrounds, `PlayerModel` pauses media with a video track unless Picture in Picture is active. Audio-only media keeps playing. The Mac keeps playing, as Mac apps do.
+
+**Now Playing and remote commands.** `NowPlaying` subscribes to each engine's `states()` and publishes for whichever player last started playing. Another open player takes over when that one closes. It publishes only when something the system can't extrapolate changes: title, duration, rate, play state, or a position more than a second off the expected one. Commands (play, pause, toggle, skip ±10 s, change position, change rate) go through `PlayerModel`, the same as the on-screen controls. MediaPlayer calls handlers and the artwork closure on its own queues, so both are built so they aren't isolated to the main actor.
+
+**Handoff.** A player advertises `io.pane.player.playing` (`NSUserActivityTypes`) with a JSON-encoded `PlaybackHandoff` (Domain). SwiftUI's `userActivity` modifier fills it in when the system asks, so the position is current.
+- Streams travel as their URL. Shares travel as the server's kind, host and port plus the path, never a credential. The receiving device reuses a saved server with the same address, or saves this one, and signs in with its own keychain.
+- A file travels as its library item ID. `ContinueHandoff` (Domain) plays it only if this device has an item with that ID or title whose bookmark `MediaImporter.canOpen(_:)`. Otherwise the user sees why it can't continue.
+- `ContinueHandoff` saves the sender's position as the item's progress, so opening it resumes through `ResumePlayback`'s usual rules.
+
+**iCloud sync.** Optional, off by default, in Settings (a sheet on iPhone and iPad, the Settings window on the Mac). The whole library store syncs through CloudKit's private database, because progress is keyed by library item and means nothing without its item. Keychain credentials are never in the store.
+- `LibraryStore.open(syncsWithCloud:)` reads the setting once at launch. It opens with `.private("iCloud.io.pane.player")` when the setting is on and someone is signed in to iCloud. Otherwise, or when CloudKit refuses the store (no entitlement, a container the team doesn't own), it opens the same store locally. The result is `CloudSyncStatus`, which Settings explains. A change applies at the next launch, since every repository holds the container.
+- The store is explicitly `.none` when sync is off. SwiftData's default, `.automatic`, would start syncing as soon as the build had an iCloud entitlement.
+- CloudKit rules for the models: no unique attributes, every attribute optional or defaulted, to-many relationships optional. Removing `.unique` and adding defaults is a lightweight migration; `CloudKitStoreTests` opens a store written by the old schema (`Fixtures/LibraryBeforeCloudKit.store`). Without uniqueness, repositories still look up before inserting, and reads tolerate the duplicates sync can produce: the newest progress wins and history lists a URL once.
+- Bookmarks only resolve on the device that made them, so file items and folders carry `originDevice`, a per-install ID kept in UserDefaults. Other devices' files and folders stay out of listings. Unstamped records are claimed at launch.
+- Signing is opt-in. `Config/Pane.xcconfig` includes `Signing.local.xcconfig` if it exists (git-ignored; see the `.example`), which sets the team and the iCloud entitlements. A build without it has no entitlements, builds without a team and reports sync as unavailable.
 
 ## Navigation
 

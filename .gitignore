@@ -25,3 +25,6 @@ Packages/*/.swiftpm/
 
 # Claude Code local overrides
 .claude/settings.local.json
+
+# Signing with a personal team (see Config/Signing.local.xcconfig.example)
+Config/Signing.local.xcconfig

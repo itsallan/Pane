@@ -9,9 +9,9 @@ final class MediaItemRecord {
         case networkShare
     }
 
-    @Attribute(.unique) var id: UUID
-    var title: String
-    var sourceKind: SourceKind
+    var id = UUID()
+    var title = ""
+    var sourceKind = SourceKind.stream
     var bookmark: Data?
     var streamURL: URL?
     var shareServerID: UUID?
@@ -19,7 +19,9 @@ final class MediaItemRecord {
     /// Where the file was at import, so importing it again doesn't duplicate it. Never used to open the file.
     var importedPath: String?
     var durationMilliseconds: Int64?
-    var dateAdded: Date
+    var dateAdded = Date.distantPast
+    /// For files: the device that imported it, the only one its bookmark resolves on.
+    var originDevice: String?
     var folder: FolderRecord?
 
     init(id: UUID, title: String, sourceKind: SourceKind, dateAdded: Date) {

@@ -10,12 +10,11 @@ public actor SwiftDataProgressRepository: ProgressRepository {
     }
 
     public func allProgress() async throws -> [MediaItem.ID: PlaybackProgress] {
-        let records = try modelContext.fetch(FetchDescriptor<ProgressRecord>(predicate: #Predicate { !$0.isWatched }))
-        return Dictionary(records.map { ($0.itemID, $0.playbackProgress) }, uniquingKeysWith: { _, last in last })
+        try latestRecords().filter { !$0.value.isWatched }.mapValues(\.playbackProgress)
     }
 
     public func watchedItems() async throws -> Set<MediaItem.ID> {
-        Set(try modelContext.fetch(FetchDescriptor<ProgressRecord>(predicate: #Predicate { $0.isWatched })).map(\.itemID))
+        Set(try latestRecords().filter(\.value.isWatched).keys)
     }
 
     public func lastPlayedDates() async throws -> [MediaItem.ID: Date] {
@@ -55,7 +54,18 @@ public actor SwiftDataProgressRepository: ProgressRepository {
         try modelContext.save()
     }
 
+    private func latestRecords() throws -> [MediaItem.ID: ProgressRecord] {
+        let records = try modelContext.fetch(FetchDescriptor<ProgressRecord>())
+        return Dictionary(records.map { ($0.itemID, $0) }, uniquingKeysWith: { $0.updatedAt >= $1.updatedAt ? $0 : $1 })
+    }
+
+    // Two devices can each save progress for an item before they sync; the most recent one wins.
     private func record(for item: MediaItem.ID) throws -> ProgressRecord? {
-        try modelContext.fetch(FetchDescriptor<ProgressRecord>(predicate: #Predicate { $0.itemID == item })).first
+        var descriptor = FetchDescriptor<ProgressRecord>(
+            predicate: #Predicate { $0.itemID == item },
+            sortBy: [SortDescriptor(\.updatedAt, order: .reverse)]
+        )
+        descriptor.fetchLimit = 1
+        return try modelContext.fetch(descriptor).first
     }
 }

@@ -45,6 +45,9 @@ struct RootView: View {
                 await dependencies.loadSubtitleStyle()
             }
             #if os(iOS)
+            .sheet(isPresented: $router.isShowingSettings) {
+                SettingsSheet(model: router.settingsModel)
+            }
             .fullScreenCover(item: $router.presentedSession) { session in
                 PlayerScreen(model: session.model, onDismiss: router.dismissPlayer) {
                     VideoSurface(session.drawable)

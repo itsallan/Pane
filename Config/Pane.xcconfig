@@ -1,0 +1,3 @@
+// iCloud sync needs a signing team and the iCloud entitlements, and a build without a team can't carry them.
+// So they only switch on when Signing.local.xcconfig exists; see Signing.local.xcconfig.example.
+#include? "Signing.local.xcconfig"

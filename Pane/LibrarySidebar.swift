@@ -30,6 +30,10 @@ struct LibrarySidebar: View {
         .navigationTitle("Pane")
         #if os(macOS)
         .navigationSplitViewColumnWidth(min: 180, ideal: 220)
+        #else
+        .toolbar {
+            SettingsButton(router: router)
+        }
         #endif
     }
 

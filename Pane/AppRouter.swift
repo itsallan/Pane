@@ -3,6 +3,7 @@ import Foundation
 import LibraryFeature
 import NetworkFeature
 import Observation
+import SettingsFeature
 
 /// Per window: what's selected, the navigation paths and the presented player.
 @Observable
@@ -24,6 +25,7 @@ final class AppRouter {
     var networkPath: [NetworkRoute] = []
     var presentedSession: PlayerSession?
     var handoffFailure: HandoffFailure?
+    var isShowingSettings = false
 
     var isShowingHandoffFailure: Bool {
         get { handoffFailure != nil }
@@ -41,6 +43,10 @@ final class AppRouter {
         browser: dependencies.networkBrowser,
         servers: dependencies.servers,
         credentials: dependencies.credentials
+    )
+    @ObservationIgnored private(set) lazy var settingsModel = SettingsModel(
+        preferences: dependencies.preferences,
+        launchStatus: dependencies.cloudSync
     )
     @ObservationIgnored private(set) lazy var openURLModel = OpenURLModel(history: dependencies.streamHistory)
 

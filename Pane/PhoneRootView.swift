@@ -12,6 +12,9 @@ struct PhoneRootView: View {
             Tab("Library", systemImage: "film.stack", value: .library) {
                 NavigationStack(path: $router.libraryPath) {
                     LibraryScreen(model: router.model(for: .all), showsFolders: true, onOpen: onOpen)
+                        .toolbar {
+                            SettingsButton(router: router)
+                        }
                         #if DEBUG
                         .toolbar {
                             SampleStreamsButton(router: router)

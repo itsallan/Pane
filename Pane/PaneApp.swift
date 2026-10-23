@@ -34,6 +34,10 @@ struct PaneApp: App {
         .windowResizability(.contentMinSize)
         .restorationBehavior(.disabled)
         .handlesExternalEvents(matching: [])
+
+        Settings {
+            SettingsWindow(dependencies: dependencies)
+        }
         #else
         libraryWindow
         #endif

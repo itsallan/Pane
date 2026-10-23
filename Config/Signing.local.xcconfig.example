@@ -1,0 +1,5 @@
+// Copy to Signing.local.xcconfig (git-ignored) to sign with your team and turn on iCloud sync.
+DEVELOPMENT_TEAM = ABCDE12345
+CODE_SIGN_ENTITLEMENTS[sdk=iphoneos*] = Pane/Pane-iOS.entitlements
+CODE_SIGN_ENTITLEMENTS[sdk=iphonesimulator*] = Pane/Pane-iOS.entitlements
+CODE_SIGN_ENTITLEMENTS[sdk=macosx*] = Pane/Pane-macOS.entitlements
