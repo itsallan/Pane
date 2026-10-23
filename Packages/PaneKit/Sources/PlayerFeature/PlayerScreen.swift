@@ -120,7 +120,11 @@ public struct PlayerScreen<Surface: View>: View {
         switch phase {
         case .active: model.sceneDidBecomeActive()
         case .inactive: model.sceneDidResignActive()
+        #if os(iOS)
+        case .background: model.sceneDidEnterBackground(pausesVideo: true)
+        #else
         case .background: model.sceneDidEnterBackground()
+        #endif
         @unknown default: break
         }
     }

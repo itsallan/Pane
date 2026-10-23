@@ -102,7 +102,9 @@ final class AppRouter {
 
     func present(_ item: MediaItem) {
         guard presentedSession == nil else { return }
-        presentedSession = PlayerSession(item: item, dependencies: dependencies)
+        let session = PlayerSession(item: item, dependencies: dependencies)
+        presentedSession = session
+        dependencies.playerDidOpen(session)
     }
 
     func dismissPlayer() {
@@ -110,8 +112,7 @@ final class AppRouter {
     }
 
     func playerDidClose(_ session: PlayerSession) async {
-        await session.close()
-        dependencies.libraryDidChange()
+        await dependencies.playerDidClose(session)
     }
 
     func reloadLibraries() async {

@@ -56,7 +56,9 @@ struct PlayerWindow: View {
         }
         await waitForTurn()
         guard session == nil, !Task.isCancelled else { return }
-        session = PlayerSession(item: item, dependencies: dependencies)
+        let session = PlayerSession(item: item, dependencies: dependencies)
+        self.session = session
+        dependencies.playerDidOpen(session)
     }
 
     // VLCKit 4.0.0-a25 can abort in vout_display_opengl_Prepare when players set up video at the same moment,
@@ -80,10 +82,7 @@ struct PlayerWindow: View {
     private func closeSession() {
         guard let session else { return }
         self.session = nil
-        Task {
-            await session.close()
-            dependencies.libraryDidChange()
-        }
+        Task { await dependencies.playerDidClose(session) }
     }
 }
 #endif

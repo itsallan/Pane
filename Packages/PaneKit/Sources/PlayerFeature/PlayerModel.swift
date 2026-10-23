@@ -210,6 +210,7 @@ public final class PlayerModel {
         chapters.last { $0.start <= position }
     }
 
+    public var hasVideo: Bool { tracks.contains { $0.kind == .video } }
     public var audioTracks: [MediaTrack] { tracks.filter { $0.kind == .audio } }
     public var subtitleTracks: [MediaTrack] { tracks.filter { $0.kind == .subtitle } }
 
@@ -253,6 +254,11 @@ public final class PlayerModel {
         } else {
             Task { [engine] in await engine.play() }
         }
+    }
+
+    public func play() {
+        guard !isPlaybackActive else { return }
+        togglePlayback()
     }
 
     public func pause() {
@@ -354,7 +360,7 @@ public final class PlayerModel {
         resumeDeadline = nil
     }
 
-    private func seek(to target: Duration) {
+    public func seek(to target: Duration) {
         guard isSeekable else { return }
         let clamped = clamp(target)
         beginPendingSeek(to: clamped)
@@ -541,9 +547,13 @@ extension PlayerModel {
         restoreBrightness()
     }
 
-    public func sceneDidEnterBackground() {
+    /// With `pausesVideo`, audio-only media keeps playing and video stops, since nobody can see it.
+    public func sceneDidEnterBackground(pausesVideo: Bool = false) {
         restoreBrightness()
         saveProgress(.background)
+        if pausesVideo, hasVideo, isPlaybackActive {
+            pause()
+        }
     }
 
     public func sceneDidBecomeActive() {

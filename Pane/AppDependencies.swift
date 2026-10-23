@@ -17,6 +17,10 @@ final class AppDependencies {
     let credentials: any CredentialStore
     let streamHistory: any StreamHistoryRepository
     let networkBrowser: any NetworkBrowser
+    let openPlayers = OpenPlayers()
+    #if os(iOS)
+    private let audioSession: PlaybackAudioSession
+    #endif
     private let store: SwiftDataLibraryRepository
     /// Read when a player is built, because libvlc takes part of the style only at creation.
     private(set) var subtitleStyle = SubtitleStyle()
@@ -51,6 +55,21 @@ final class AppDependencies {
         #else
         networkBrowser = VLCNetworkBrowser(credentials: keychain)
         #endif
+        #if os(iOS)
+        audioSession = PlaybackAudioSession(players: openPlayers)
+        audioSession.activate()
+        #endif
+    }
+
+    func playerDidOpen(_ session: PlayerSession) {
+        openPlayers.add(session)
+    }
+
+    /// Saves progress and closes the engine.
+    func playerDidClose(_ session: PlayerSession) async {
+        openPlayers.remove(session)
+        await session.close()
+        libraryDidChange()
     }
 
     /// Reopens imported folders and refreshes stale bookmarks; run once at launch.

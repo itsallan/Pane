@@ -5,8 +5,11 @@ import PlayerFeature
 /// One open player: the engine, its drawable and the model. Built in an action, never in `body`,
 /// so a redraw can't spawn a second engine.
 final class PlayerSession: Identifiable {
+    let item: MediaItem
     let model: PlayerModel
     let drawable: VideoDrawable
+    /// For system integration that follows the engine's state directly; the UI goes through `model`.
+    let engine: any PlaybackEngine
 
     init(item: MediaItem, dependencies: AppDependencies) {
         let (engine, drawable) = VLCPlaybackEngine.makeWithSurface(
@@ -14,6 +17,8 @@ final class PlayerSession: Identifiable {
             servers: dependencies.servers,
             credentials: dependencies.credentials
         )
+        self.item = item
+        self.engine = engine
         self.drawable = drawable
         #if os(iOS)
         let brightness: (any ScreenBrightness)? = SceneScreenBrightness()
