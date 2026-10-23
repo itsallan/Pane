@@ -22,6 +22,7 @@ public final class FakePlaybackEngine: PlaybackEngine {
         case addSubtitle(URL)
         case setSubtitleDelay(Duration)
         case setSubtitleStyle(SubtitleStyle)
+        case setPictureInPicture(Bool)
         case captureFrame
         case close
     }
@@ -208,6 +209,13 @@ public final class FakePlaybackEngine: PlaybackEngine {
 
     public func setSubtitleStyle(_ style: SubtitleStyle) async {
         record(.setSubtitleStyle(style)) { _ in }
+    }
+
+    public func setPictureInPicture(_ isActive: Bool) async {
+        record(.setPictureInPicture(isActive)) { state in
+            guard state.isPictureInPictureSupported else { return }
+            state.isPictureInPictureActive = isActive
+        }
     }
 
     public func captureFrame() async throws(PlaybackError) -> URL {

@@ -25,6 +25,8 @@ public protocol PlaybackEngine: Sendable {
     func setSubtitleDelay(_ delay: Duration) async
     /// The size changes at once; background and position may only take effect from the next engine.
     func setSubtitleStyle(_ style: SubtitleStyle) async
+    /// Does nothing unless the state says Picture in Picture is supported.
+    func setPictureInPicture(_ isActive: Bool) async
     /// Returns a file URL in Caches.
     func captureFrame() async throws(PlaybackError) -> URL
     func close() async

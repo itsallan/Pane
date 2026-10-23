@@ -203,7 +203,11 @@ VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIVie
 
   There's no `AnyView` and no environment key. The generic stays local because `LibraryFeature` never builds a player: it calls `onOpen(item)` and the app target builds it.
 - **Session lifetime belongs to the router.** The engine, model and surface are created in the open action, not in `body`, so redraws can't spawn extra engines. They're stored in `AppRouter.presentedSession` and closed on dismiss. Each macOS player window owns its own session.
-- Picture in Picture uses VLCKit 4's PiP-capable drawable. It stays inside Playback and will reach Domain as a capability flag on `PlaybackState`.
+- **Picture in Picture** (iOS and iPadOS). On iOS `VideoDrawable` conforms to `VLCPictureInPictureDrawable`. VLC's sample buffer video output finds that, and where AVKit allows PiP it hands back a window controller once video is up. Domain only sees `isPictureInPictureSupported` and `isPictureInPictureActive` on `PlaybackState`, plus `setPictureInPicture(_:)`.
+  - AVKit asks the media controller for time, length and play state synchronously on main, so the engine keeps a `Mutex` copy (`PictureInPictureMedia`) and refreshes the window only when something AVKit can't extrapolate changes. PiP play, pause and skip go back into the engine as commands.
+  - The capability survives `load`, because VLC can keep its video output across media and then never reports ready again. The button also needs a video track.
+  - 4.0.0-a25's macOS slice has no PiP controller, so on the Mac the flag stays false. The iPhone simulator reports PiP unsupported; the iPad simulator and devices support it.
+  - Backgrounding pauses video unless PiP is active. Audio-only media keeps playing.
 
 ## Navigation
 

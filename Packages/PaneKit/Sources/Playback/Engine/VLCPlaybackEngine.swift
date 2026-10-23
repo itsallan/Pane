@@ -22,6 +22,10 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private let servers: (any NetworkServerRepository)?
     private let credentials: (any CredentialStore)?
     private let responder: LoginResponder
+    #if os(iOS)
+    nonisolated let pictureInPictureMedia = PictureInPictureMedia()
+    nonisolated let pictureInPictureWindow: PictureInPictureWindow
+    #endif
 
     private var state = PlaybackState()
     private var location: MediaLocation?
@@ -65,6 +69,10 @@ public actor VLCPlaybackEngine: PlaybackEngine {
             player.drawable = drawable
         }
         captureDirectory = URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
+        #if os(iOS)
+        let pictureInPictureBridge = bridge
+        pictureInPictureWindow = PictureInPictureWindow { pictureInPictureBridge.yield(.pictureInPicture($0)) }
+        #endif
 
         // Seekability has no delegate callback, only this notification. It's posted on libvlc's event thread.
         let bridge = bridge
@@ -75,6 +83,12 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         ) { _ in
             bridge.yield(.capabilitiesChanged)
         }
+
+        #if os(iOS)
+        pictureInPictureMedia.onCommand { [weak self] command in
+            Task { await self?.perform(command) }
+        }
+        #endif
 
         let events = bridge.events
         Task { [weak self] in
@@ -128,7 +142,14 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         isTrackSelectionManual = false
         pendingSlave = nil
         slaveTitles = [:]
-        state = PlaybackState(status: .opening, volume: state.volume, videoScaling: state.videoScaling)
+        // VLC can keep its video output across media, and then never reports Picture in Picture ready again.
+        state = PlaybackState(
+            status: .opening,
+            volume: state.volume,
+            videoScaling: state.videoScaling,
+            isPictureInPictureSupported: state.isPictureInPictureSupported,
+            isPictureInPictureActive: state.isPictureInPictureActive
+        )
 
         // Swapping the media under a playing player sends no state change at all: no stop, no opening.
         // The player just stays playing, so only the old state tells us which events to expect.
@@ -282,6 +303,16 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         player.currentSubTitleFontScale = style.fontScale
     }
 
+    public func setPictureInPicture(_ isActive: Bool) async {
+        #if os(iOS)
+        guard state.isPictureInPictureSupported, isActive != state.isPictureInPictureActive else { return }
+        let window = pictureInPictureWindow
+        await MainActor.run {
+            isActive ? window.start() : window.stop()
+        }
+        #endif
+    }
+
     public func captureFrame() async throws(PlaybackError) -> URL {
         // saveVideoSnapshot raises an Objective-C exception without a video output, which Swift can't catch.
         guard player.hasVideoOut, !isClosed else { throw .captureFailed }
@@ -307,6 +338,12 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     public func close() {
         guard !isClosed else { return }
         isClosed = true
+        #if os(iOS)
+        if state.isPictureInPictureActive {
+            let window = pictureInPictureWindow
+            Task { @MainActor in window.stop() }
+        }
+        #endif
         player.delegate = nil
         // stop is asynchronous in VLCKit 4; the player finishes tearing down when it's released.
         player.stop()
@@ -332,6 +369,9 @@ extension VLCPlaybackEngine {
     ) -> (engine: VLCPlaybackEngine, drawable: VideoDrawable) {
         let drawable = VideoDrawable()
         let engine = VLCPlaybackEngine(drawable: drawable, subtitleStyle: subtitleStyle, servers: servers, credentials: credentials)
+        #if os(iOS)
+        drawable.pictureInPicture = (engine.pictureInPictureMedia, engine.pictureInPictureWindow)
+        #endif
         return (engine, drawable)
     }
 }
@@ -380,6 +420,10 @@ private extension VLCPlaybackEngine {
             refreshProgress()
         case .frameCaptured:
             completeCapture()
+        case .pictureInPicture(.ready):
+            state.isPictureInPictureSupported = true
+        case .pictureInPicture(.activeChanged(let isActive)):
+            state.isPictureInPictureActive = isActive
         }
         state.status = status
         publish()
@@ -549,5 +593,30 @@ private extension VLCPlaybackEngine {
     func publish() {
         guard !isClosed else { return }
         broadcast.send(state)
+        #if os(iOS)
+        updatePictureInPicture()
+        #endif
     }
+
+    #if os(iOS)
+    func updatePictureInPicture() {
+        let snapshot = PictureInPictureMedia.Snapshot(
+            length: state.progress.duration,
+            time: state.progress.position,
+            isSeekable: state.isSeekable,
+            isPlaying: state.status == .playing
+        )
+        guard pictureInPictureMedia.update(snapshot), state.isPictureInPictureSupported else { return }
+        let window = pictureInPictureWindow
+        Task { @MainActor in window.invalidate() }
+    }
+
+    func perform(_ command: PictureInPictureMedia.Command) {
+        switch command {
+        case .play: play()
+        case .pause: pause()
+        case .seek(let offset): seek(by: offset)
+        }
+    }
+    #endif
 }

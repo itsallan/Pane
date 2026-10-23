@@ -3,6 +3,9 @@ import UIKit
 
 /// The view VLC renders into. It lives as long as its engine, so SwiftUI can rebuild the surface around it.
 public final class VideoDrawable: UIView {
+    /// Set by the engine's factory; VLC reaches it through the conformance below.
+    var pictureInPicture: (media: PictureInPictureMedia, window: PictureInPictureWindow)?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .black

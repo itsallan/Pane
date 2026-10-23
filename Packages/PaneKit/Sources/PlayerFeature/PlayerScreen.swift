@@ -75,7 +75,7 @@ public struct PlayerScreen<Surface: View>: View {
     private var chrome: some View {
         VStack(spacing: 0) {
             if model.areControlsVisible {
-                TopBar(title: model.title, onDismiss: onDismiss, snapshot: model.snapshot)
+                TopBar(model: model, onDismiss: onDismiss)
                     .transition(chromeTransition(edge: .top))
             }
             if let outcome = model.snapshot.outcome {
@@ -135,9 +135,8 @@ public struct PlayerScreen<Surface: View>: View {
 }
 
 private struct TopBar: View {
-    let title: String?
+    let model: PlayerModel
     let onDismiss: (() -> Void)?
-    let snapshot: FrameSnapshot
 
     var body: some View {
         GlassEffectContainer {
@@ -146,7 +145,7 @@ private struct TopBar: View {
                     TransportButton("Close", systemImage: "xmark", action: onDismiss)
                         .glassEffect(.regular.interactive(), in: .circle)
                 }
-                if let title {
+                if let title = model.title {
                     Text(title)
                         .font(.headline)
                         .lineLimit(1)
@@ -156,10 +155,18 @@ private struct TopBar: View {
                         .accessibilityAddTraits(.isHeader)
                 }
                 Spacer(minLength: 0)
-                if snapshot.isAvailable {
+                if model.canUsePictureInPicture {
+                    TransportButton(
+                        model.isPictureInPictureActive ? "Stop Picture in Picture" : "Start Picture in Picture",
+                        systemImage: model.isPictureInPictureActive ? "pip.exit" : "pip.enter",
+                        action: model.togglePictureInPicture
+                    )
+                    .glassEffect(.regular.interactive(), in: .circle)
+                }
+                if model.snapshot.isAvailable {
                     TransportButton("Save Frame to Photos", systemImage: "camera", action: saveFrame)
                         .glassEffect(.regular.interactive(), in: .circle)
-                        .disabled(snapshot.isSaving)
+                        .disabled(model.snapshot.isSaving)
                 }
             }
         }
@@ -167,7 +174,7 @@ private struct TopBar: View {
     }
 
     private func saveFrame() {
-        Task { await snapshot.capture() }
+        Task { await model.snapshot.capture() }
     }
 }
 

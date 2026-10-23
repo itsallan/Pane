@@ -11,4 +11,10 @@ enum EngineEvent: Sendable {
     case capabilitiesChanged
     case frameStepped
     case frameCaptured
+    case pictureInPicture(PictureInPictureEvent)
+}
+
+enum PictureInPictureEvent: Sendable {
+    case ready
+    case activeChanged(Bool)
 }

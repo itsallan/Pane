@@ -31,6 +31,8 @@ public final class PlayerModel {
     public private(set) var tracks: [MediaTrack] = []
     public private(set) var selectedTrackIDs: Set<MediaTrack.ID> = []
     public private(set) var loadFailure: PlaybackError?
+    public private(set) var isPictureInPictureSupported = false
+    public private(set) var isPictureInPictureActive = false
 
     public private(set) var areControlsVisible = true
     public private(set) var isScrubbing = false
@@ -211,6 +213,14 @@ public final class PlayerModel {
     }
 
     public var hasVideo: Bool { tracks.contains { $0.kind == .video } }
+
+    public var canUsePictureInPicture: Bool { isPictureInPictureSupported && hasVideo }
+
+    public func togglePictureInPicture() {
+        guard canUsePictureInPicture else { return }
+        let isActive = !isPictureInPictureActive
+        Task { [engine] in await engine.setPictureInPicture(isActive) }
+    }
     public var audioTracks: [MediaTrack] { tracks.filter { $0.kind == .audio } }
     public var subtitleTracks: [MediaTrack] { tracks.filter { $0.kind == .subtitle } }
 
@@ -547,11 +557,11 @@ extension PlayerModel {
         restoreBrightness()
     }
 
-    /// With `pausesVideo`, audio-only media keeps playing and video stops, since nobody can see it.
+    /// With `pausesVideo`, audio-only media keeps playing and video stops unless it's in Picture in Picture.
     public func sceneDidEnterBackground(pausesVideo: Bool = false) {
         restoreBrightness()
         saveProgress(.background)
-        if pausesVideo, hasVideo, isPlaybackActive {
+        if pausesVideo, hasVideo, isPlaybackActive, !isPictureInPictureActive {
             pause()
         }
     }
@@ -626,6 +636,8 @@ extension PlayerModel {
         assign(\.isSeekable, state.isSeekable)
         assign(\.tracks, state.tracks)
         assign(\.selectedTrackIDs, state.selectedTrackIDs)
+        assign(\.isPictureInPictureSupported, state.isPictureInPictureSupported)
+        assign(\.isPictureInPictureActive, state.isPictureInPictureActive)
         subtitleSync.update(from: state)
         loop.update(from: state)
         if !isSpeedBoosted {

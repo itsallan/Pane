@@ -21,6 +21,9 @@ public struct PlaybackState: Sendable, Equatable {
     public var subtitleDelay: Duration
     public var isSeekable: Bool
     public var videoSize: VideoSize?
+    /// The platform and the current video output can show this media in Picture in Picture.
+    public var isPictureInPictureSupported: Bool
+    public var isPictureInPictureActive: Bool
 
     public init(
         status: Status = .idle,
@@ -34,7 +37,9 @@ public struct PlaybackState: Sendable, Equatable {
         loop: ClosedRange<Duration>? = nil,
         subtitleDelay: Duration = .zero,
         isSeekable: Bool = false,
-        videoSize: VideoSize? = nil
+        videoSize: VideoSize? = nil,
+        isPictureInPictureSupported: Bool = false,
+        isPictureInPictureActive: Bool = false
     ) {
         self.status = status
         self.progress = progress
@@ -48,6 +53,8 @@ public struct PlaybackState: Sendable, Equatable {
         self.subtitleDelay = subtitleDelay
         self.isSeekable = isSeekable
         self.videoSize = videoSize
+        self.isPictureInPictureSupported = isPictureInPictureSupported
+        self.isPictureInPictureActive = isPictureInPictureActive
     }
 
     public func selectedTrack(of kind: MediaTrack.Kind) -> MediaTrack? {
