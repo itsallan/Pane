@@ -5,9 +5,16 @@ import Foundation
 public actor FakeMediaImporter: MediaImporter {
     public private(set) var importedURLs: [URL] = []
     private let library: any LibraryRepository
+    private let openableBookmarks: Set<Data>?
 
-    public init(library: any LibraryRepository) {
+    /// With `openableBookmarks`, only those bookmarks open; without, every one does.
+    public init(library: any LibraryRepository, openableBookmarks: Set<Data>? = nil) {
         self.library = library
+        self.openableBookmarks = openableBookmarks
+    }
+
+    public func canOpen(_ bookmark: Data) async -> Bool {
+        openableBookmarks?.contains(bookmark) ?? true
     }
 
     public func importMedia(at urls: [URL]) async throws -> [MediaItem] {

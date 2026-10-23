@@ -21,6 +21,16 @@ struct RootView: View {
     var body: some View {
         root
             .onOpenURL(perform: openFile)
+            .onContinueUserActivity(PlaybackActivity.type, perform: continueHandoff)
+            .alert(
+                router.handoffFailure?.title ?? "",
+                isPresented: $router.isShowingHandoffFailure,
+                presenting: router.handoffFailure
+            ) { _ in
+                Button("OK", role: .cancel) {}
+            } message: { failure in
+                Text(failure.message)
+            }
             #if os(macOS)
             .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             .onChange(of: openedFiles.pending, initial: true) {
@@ -38,6 +48,9 @@ struct RootView: View {
             .fullScreenCover(item: $router.presentedSession) { session in
                 PlayerScreen(model: session.model, onDismiss: router.dismissPlayer) {
                     VideoSurface(session.drawable)
+                }
+                .userActivity(PlaybackActivity.type, isActive: session.model.failure == nil) { activity in
+                    PlaybackActivity.update(activity, for: session)
                 }
                 // Covers every way the cover can go away, not just the close button.
                 .onDisappear {
@@ -68,6 +81,22 @@ struct RootView: View {
         #else
         router.present(item)
         #endif
+    }
+
+    private func continueHandoff(_ activity: NSUserActivity) {
+        guard let handoff = PlaybackActivity.handoff(from: activity) else { return }
+        Task {
+            do throws(HandoffError) {
+                let item = try await dependencies.continueHandoff(handoff)
+                #if os(macOS)
+                openWindow(id: PlayerWindow.id, value: item.id)
+                #else
+                router.presentReplacing(item)
+                #endif
+            } catch {
+                router.handoffFailure = HandoffFailure(error)
+            }
+        }
     }
 
     private func openFile(_ url: URL) {

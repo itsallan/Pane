@@ -23,6 +23,16 @@ final class AppRouter {
     var libraryPath: [LibraryScope] = []
     var networkPath: [NetworkRoute] = []
     var presentedSession: PlayerSession?
+    var handoffFailure: HandoffFailure?
+
+    var isShowingHandoffFailure: Bool {
+        get { handoffFailure != nil }
+        set {
+            if !newValue {
+                handoffFailure = nil
+            }
+        }
+    }
 
     let dependencies: AppDependencies
     @ObservationIgnored private var models: [LibraryScope: LibraryModel] = [:]
@@ -102,6 +112,11 @@ final class AppRouter {
 
     func present(_ item: MediaItem) {
         guard presentedSession == nil else { return }
+        presentReplacing(item)
+    }
+
+    /// Handoff can arrive while something else plays; the new item replaces it, and the old one closes on disappear.
+    func presentReplacing(_ item: MediaItem) {
         let session = PlayerSession(item: item, dependencies: dependencies)
         presentedSession = session
         dependencies.playerDidOpen(session)

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct NetworkServer: Sendable, Hashable, Identifiable {
-    public enum Kind: Sendable, Hashable {
+    public enum Kind: Sendable, Hashable, Codable {
         case smb
         case sftp
         case upnp

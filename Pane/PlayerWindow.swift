@@ -25,6 +25,9 @@ struct PlayerWindow: View {
                     VideoSurface(session.drawable)
                 }
                 .pointerVisibility(isFullScreen && !session.model.areControlsVisible ? .hidden : .automatic)
+                .userActivity(PlaybackActivity.type, isActive: session.model.failure == nil) { activity in
+                    PlaybackActivity.update(activity, for: session)
+                }
             }
         }
         .frame(minWidth: 480, minHeight: 270)

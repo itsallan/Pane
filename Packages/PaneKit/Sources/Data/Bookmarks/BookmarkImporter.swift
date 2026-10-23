@@ -27,6 +27,11 @@ public struct BookmarkImporter: MediaImporter {
         return imported
     }
 
+    public func canOpen(_ bookmark: Data) async -> Bool {
+        guard let resolution = try? SecurityScopedBookmark.resolve(bookmark) else { return false }
+        return FileManager.default.fileExists(atPath: resolution.url.path(percentEncoded: false))
+    }
+
     private func importFolder(at url: URL) async throws -> [MediaItem] {
         let bookmark = try SecurityScopedBookmark.make(for: url)
         let candidate = LibraryFolder(name: url.lastPathComponent)

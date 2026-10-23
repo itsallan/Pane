@@ -102,6 +102,13 @@ final class AppDependencies {
         (try? await importer.importMedia(at: urls)) ?? []
     }
 
+    /// Adds what another device was playing to this library, with its position as the resume point.
+    func continueHandoff(_ handoff: PlaybackHandoff) async throws(HandoffError) -> MediaItem {
+        let item = try await ContinueHandoff(library: library, servers: servers, progress: progress, importer: importer)(handoff)
+        libraryDidChange()
+        return item
+    }
+
     func libraryDidChange() {
         libraryRevision += 1
     }
