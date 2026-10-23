@@ -18,6 +18,7 @@ final class AppDependencies {
     let streamHistory: any StreamHistoryRepository
     let networkBrowser: any NetworkBrowser
     let openPlayers = OpenPlayers()
+    private let nowPlaying: NowPlaying
     #if os(iOS)
     private let audioSession: PlaybackAudioSession
     #endif
@@ -50,6 +51,7 @@ final class AppDependencies {
         credentials = keychain
         thumbnails = VLCThumbnailProvider(servers: serverStore, credentials: keychain)
         streamHistory = SwiftDataStreamHistoryRepository(modelContainer: container)
+        nowPlaying = NowPlaying(thumbnails: thumbnails)
         #if DEBUG
         networkBrowser = DemoNetwork.isEnabled ? DemoNetwork.browser(credentials: keychain) : VLCNetworkBrowser(credentials: keychain)
         #else
@@ -63,11 +65,13 @@ final class AppDependencies {
 
     func playerDidOpen(_ session: PlayerSession) {
         openPlayers.add(session)
+        nowPlaying.add(session)
     }
 
     /// Saves progress and closes the engine.
     func playerDidClose(_ session: PlayerSession) async {
         openPlayers.remove(session)
+        nowPlaying.remove(session)
         await session.close()
         libraryDidChange()
     }
