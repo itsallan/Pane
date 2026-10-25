@@ -328,7 +328,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     }
 
     public func sampleAmbientPalette() async throws(PlaybackError) -> AmbientPalette {
-        // The vout scales before it encodes, so a 32 px PNG costs far less than a full frame. Height 0 keeps the aspect.
+        // The vout scales before it encodes, so a thumbnail-sized PNG costs far less than a full frame. Height 0 keeps the aspect.
         let url = try await snapshot(into: ambientDirectory, width: Int32(AmbientSampler.sampleWidth), height: 0)
         defer { try? FileManager.default.removeItem(at: url) }
         guard let palette = AmbientSampler.palette(fromImageAt: url) else { throw .captureFailed }

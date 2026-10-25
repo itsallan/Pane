@@ -5,7 +5,9 @@ import ImageIO
 
 /// Averages a tiny snapshot into the palette's grid.
 enum AmbientSampler {
-    static let sampleWidth = 32
+    // libvlc's PNG encoder sizes its buffer from the raw pixels; below about 64 px wide the PNG headers alone
+    // overflow it ("block size too small") and the snapshot fails.
+    static let sampleWidth = 96
 
     static func palette(fromImageAt url: URL) -> AmbientPalette? {
         guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
