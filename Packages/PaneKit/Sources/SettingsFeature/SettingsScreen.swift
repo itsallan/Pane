@@ -10,6 +10,7 @@ public struct SettingsScreen: View {
 
     public var body: some View {
         Form {
+            AppearanceSection()
             PlaybackSettingsSection(model: model)
             SubtitleSettingsSection(model: model)
             AudioSettingsSection(model: model)

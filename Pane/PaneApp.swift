@@ -6,6 +6,8 @@ struct PaneApp: App {
     @State private var dependencies = AppDependencies()
     #if os(macOS)
     @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
+    #else
+    @UIApplicationDelegateAdaptor private var appDelegate: AppDelegate
     #endif
 
     var body: some Scene {
@@ -46,6 +48,7 @@ struct PaneApp: App {
     private var libraryWindow: some Scene {
         WindowGroup {
             RootView(dependencies: dependencies)
+                .syncsAppearance()
         }
     }
 }
