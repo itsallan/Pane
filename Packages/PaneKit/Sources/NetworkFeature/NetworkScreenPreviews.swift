@@ -32,6 +32,17 @@ private enum PreviewNetwork {
     }
 }
 
+#Preview("Servers, dark") {
+    NavigationStack {
+        NetworkScreen(model: NetworkModel(
+            browser: PreviewNetwork.browser,
+            servers: InMemoryNetworkServerRepository(servers: [PreviewNetwork.seedbox]),
+            credentials: PreviewNetwork.credentials
+        ))
+    }
+    .preferredColorScheme(.dark)
+}
+
 #Preview("Folder") {
     NavigationStack {
         ShareBrowserScreen(

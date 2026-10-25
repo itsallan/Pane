@@ -23,7 +23,7 @@ struct LibraryContent: View {
                 }
                 VStack(alignment: .leading, spacing: Metrics.sectionHeaderSpacing) {
                     if model.scope == .all {
-                        SectionHeader("All Videos", detail: countLabel)
+                        SectionHeader("All Videos") { countLabel }
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: Metrics.sectionSpacing) {
                         ForEach(model.entries) { entry in

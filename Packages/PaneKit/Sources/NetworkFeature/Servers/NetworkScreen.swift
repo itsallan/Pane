@@ -1,3 +1,4 @@
+import DesignSystem
 import Domain
 import SwiftUI
 
@@ -12,32 +13,14 @@ public struct NetworkScreen: View {
     }
 
     public var body: some View {
-        List {
-            Section {
-                NavigationLink(value: NetworkRoute.openURL) {
-                    Label("Open URL", systemImage: "link")
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: Metrics.sectionSpacing) {
+                OpenURLCard()
+                    .padding(.horizontal, Metrics.edgeInset)
+                SavedServersSection(model: model, onAdd: presentAddServer)
+                NearbyServersSection(servers: model.nearbyServers)
             }
-            if !model.savedServers.isEmpty {
-                Section("Saved") {
-                    ForEach(model.savedServers) { server in
-                        NavigationLink(value: server.rootRoute) {
-                            ServerRow(server: server)
-                        }
-                        .contextMenu {
-                            Button("Remove Server", systemImage: "trash", role: .destructive) {
-                                remove(server)
-                            }
-                        }
-                        .swipeActions {
-                            Button("Remove", systemImage: "trash", role: .destructive) {
-                                remove(server)
-                            }
-                        }
-                    }
-                }
-            }
-            NearbyServersSection(servers: model.nearbyServers)
+            .padding(.vertical, Metrics.controlSpacing)
         }
         .navigationTitle("Network")
         .toolbar {
@@ -68,9 +51,5 @@ public struct NetworkScreen: View {
 
     private func add(_ server: NetworkServer, credential: NetworkCredential?) {
         Task { await model.add(server, credential: credential) }
-    }
-
-    private func remove(_ server: NetworkServer) {
-        Task { await model.remove(server) }
     }
 }

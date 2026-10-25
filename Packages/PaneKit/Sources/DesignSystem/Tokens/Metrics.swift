@@ -40,4 +40,11 @@ extension Metrics {
     public static let heroWidthFraction: CGFloat = 0.86
     public static let heroMaximumWidth: CGFloat = 520
     public static let badgeSize: CGFloat = 36
+    public static let tileMinimumWidth: CGFloat = 156
+    public static let tileCornerRadius: CGFloat = 18
+    /// Shared by every tile in a row, so an Add tile lines up with a server beside it.
+    public static let tileMinimumHeight: CGFloat = 128
+    public static let tilePadding: CGFloat = 14
+    public static let iconTileSize: CGFloat = 40
+    public static let iconTileCornerRadius: CGFloat = 10
 }

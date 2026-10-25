@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import SwiftUI
 import UniformTypeIdentifiers
 
 extension NetworkEntry {
@@ -19,9 +20,16 @@ extension NetworkEntry {
 
     var symbolName: String {
         if isDirectory {
-            return "folder"
+            return "folder.fill"
         }
         return isPlayable ? "film" : "doc"
+    }
+
+    var tint: Color {
+        if isDirectory {
+            return .blue
+        }
+        return isPlayable ? .purple : .gray
     }
 
     var sizeText: String? {

@@ -1,3 +1,4 @@
+import DesignSystem
 import Domain
 import SwiftUI
 
@@ -5,8 +6,9 @@ struct EntryRow: View {
     let entry: NetworkEntry
 
     var body: some View {
-        Label {
-            VStack(alignment: .leading) {
+        HStack(spacing: Metrics.controlSpacing + 4) {
+            IconTile(systemImage: entry.symbolName, tint: entry.tint)
+            VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
                     .lineLimit(2)
                 if !entry.isDirectory, !entry.isPlayable {
@@ -19,8 +21,6 @@ struct EntryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
-        } icon: {
-            Image(systemName: entry.symbolName)
         }
     }
 }

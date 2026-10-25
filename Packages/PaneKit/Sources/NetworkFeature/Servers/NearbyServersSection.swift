@@ -1,3 +1,4 @@
+import DesignSystem
 import Domain
 import SwiftUI
 
@@ -5,25 +6,27 @@ struct NearbyServersSection: View {
     let servers: [NetworkServer]
 
     var body: some View {
-        Section {
-            ForEach(servers) { server in
-                NavigationLink(value: server.rootRoute) {
-                    ServerRow(server: server)
-                }
+        VStack(alignment: .leading, spacing: Metrics.sectionHeaderSpacing) {
+            SectionHeader("Nearby") {
+                // Discovery never finishes, so the spinner stays as a sign it's still listening.
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Looking for servers")
             }
-            // Discovery never finishes, so an empty list always means it's still looking.
             if servers.isEmpty {
-                Label {
-                    Text("Looking for servers…")
-                        .foregroundStyle(.secondary)
-                } icon: {
-                    ProgressView()
+                SearchingCard()
+                    .padding(.horizontal, Metrics.edgeInset)
+            } else {
+                ServerGrid {
+                    ForEach(servers) { server in
+                        ServerTile(server: server)
+                    }
                 }
             }
-        } header: {
-            Text("Nearby")
-        } footer: {
             Text("Pane finds SMB and UPnP servers on your network. Add SFTP servers, or SMB servers that don't show up, by hand.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Metrics.edgeInset)
         }
     }
 }

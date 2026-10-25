@@ -10,6 +10,15 @@ extension NetworkServer {
         }
     }
 
+    /// One color per protocol, so a glance at the grid says what kind of server each one is.
+    var tint: Color {
+        switch kind {
+        case .smb: .blue
+        case .sftp: .indigo
+        case .upnp: .orange
+        }
+    }
+
     var kindLabel: LocalizedStringKey {
         switch kind {
         case .smb: "SMB"
