@@ -28,8 +28,16 @@ public enum Metrics {
 extension Metrics {
     public static let posterAspectRatio: CGFloat = 16 / 9
     public static let posterCornerRadius: CGFloat = 12
-    public static let posterMinimumWidth: CGFloat = 200
-    public static let continueWatchingWidth: CGFloat = 280
-    public static let rowPosterWidth: CGFloat = 120
+    /// Two columns on an iPhone, four or more on an iPad.
+    public static let posterMinimumWidth: CGFloat = 156
+    public static let posterRegularMinimumWidth: CGFloat = 220
     public static let progressBarHeight: CGFloat = 4
+    public static let gridSpacing: CGFloat = 16
+    public static let sectionSpacing: CGFloat = 28
+    public static let sectionHeaderSpacing: CGFloat = 10
+    public static let heroCornerRadius: CGFloat = 20
+    /// The share of the width a Continue Watching card takes, so the next one peeks in.
+    public static let heroWidthFraction: CGFloat = 0.86
+    public static let heroMaximumWidth: CGFloat = 520
+    public static let badgeSize: CGFloat = 36
 }

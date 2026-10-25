@@ -6,27 +6,23 @@ import SwiftUI
 struct PosterImage: View {
     let item: MediaItem
     let model: LibraryModel
+    let cornerRadius: CGFloat
 
     @State private var url: URL?
 
     var body: some View {
-        Rectangle()
-            .fill(.quaternary)
+        PosterPlaceholder(title: item.title)
             .overlay {
-                AsyncImage(url: url) { phase in
-                    if let image = phase.image {
-                        image
-                            .resizable()
-                            .scaledToFill()
-                    } else {
-                        Image(systemName: "film")
-                            .font(.title)
-                            .foregroundStyle(.secondary)
-                    }
+                AsyncImage(url: url) { image in
+                    image
+                        .resizable()
+                        .scaledToFill()
+                } placeholder: {
+                    Color.clear
                 }
             }
             .aspectRatio(Metrics.posterAspectRatio, contentMode: .fit)
-            .clipShape(.rect(cornerRadius: Metrics.posterCornerRadius))
+            .clipShape(.rect(cornerRadius: cornerRadius))
             .accessibilityHidden(true)
             .task(id: item.source) {
                 url = await model.poster(for: item)

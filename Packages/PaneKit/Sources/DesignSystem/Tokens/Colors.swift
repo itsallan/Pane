@@ -11,3 +11,14 @@ extension Color {
     public static let glassSelection = Color.white.opacity(0.22)
     public static let ambientScrim = Color.black.opacity(0.25)
 }
+
+extension ShapeStyle where Self == LinearGradient {
+    /// Under text laid over artwork, so a bright frame never swallows the title.
+    public static var artworkScrim: LinearGradient {
+        LinearGradient(
+            stops: [.init(color: .clear, location: 0.35), .init(color: .black.opacity(0.78), location: 1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}

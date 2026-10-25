@@ -9,11 +9,11 @@ struct PosterCard: View {
 
     var body: some View {
         Button(action: open) {
-            VStack(alignment: .leading, spacing: 6) {
-                PosterImage(item: entry.item, model: model)
+            VStack(alignment: .leading, spacing: Metrics.controlSpacing) {
+                PosterImage(item: entry.item, model: model, cornerRadius: Metrics.posterCornerRadius)
                     .overlay(alignment: .bottom) {
                         EntryProgressBar(fraction: entry.watchedFraction ?? 0)
-                            .padding(8)
+                            .padding(Metrics.controlSpacing)
                             .opacity(entry.watchedFraction == nil ? 0 : 1)
                     }
                     .overlay(alignment: .topTrailing) {
@@ -21,13 +21,20 @@ struct PosterCard: View {
                             .font(.title3)
                             .symbolRenderingMode(.palette)
                             .foregroundStyle(.white, .tint)
-                            .padding(8)
+                            .shadow(color: .black.opacity(0.3), radius: 2)
+                            .padding(Metrics.controlSpacing)
                             .opacity(entry.isWatched ? 1 : 0)
                     }
-                Text(entry.item.title)
-                    .font(.subheadline)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(entry.item.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                    EntryStatusText(entry: entry)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .labelStyle(.titleOnly)
+                }
             }
             .contentShape(.rect)
         }

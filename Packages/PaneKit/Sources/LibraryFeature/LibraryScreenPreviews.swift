@@ -29,6 +29,13 @@ private extension LibraryModel {
     }
 }
 
+#Preview("Library, dark") {
+    NavigationStack {
+        LibraryScreen(model: .preview(), showsFolders: true) { _ in }
+    }
+    .preferredColorScheme(.dark)
+}
+
 #Preview("Empty") {
     NavigationStack {
         LibraryScreen(model: .preview(empty: true)) { _ in }

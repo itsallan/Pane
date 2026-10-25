@@ -7,7 +7,6 @@ public struct LibraryScreen: View {
     private let showsFolders: Bool
     private let onOpen: (MediaItem) -> Void
 
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @State private var importKind = ImportKind.files
     @State private var isImporterPresented = false
 
@@ -24,10 +23,8 @@ public struct LibraryScreen: View {
                 ProgressView()
             } else if model.isEmpty {
                 LibraryEmptyView(scope: model.scope, onImport: presentImporter)
-            } else if horizontalSizeClass == .regular {
-                LibraryGrid(model: model, showsFolders: showsFolders, onOpen: onOpen)
             } else {
-                LibraryList(model: model, showsFolders: showsFolders, onOpen: onOpen)
+                LibraryContent(model: model, showsFolders: showsFolders, onOpen: onOpen)
             }
         }
         .overlay {

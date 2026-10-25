@@ -5,13 +5,17 @@ struct FolderSection: View {
     let model: LibraryModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: Metrics.sectionHeaderSpacing) {
             SectionHeader("Folders")
-            ForEach(model.folders) { folder in
-                FolderLink(folder: folder, model: model)
-                    .frame(minHeight: Metrics.minimumHitTarget, alignment: .leading)
-                    .padding(.horizontal, Metrics.edgeInset)
+            ScrollView(.horizontal) {
+                HStack(spacing: Metrics.controlSpacing) {
+                    ForEach(model.folders) { folder in
+                        FolderLink(folder: folder, model: model)
+                    }
+                }
             }
+            .scrollIndicators(.hidden)
+            .contentMargins(.horizontal, Metrics.edgeInset, for: .scrollContent)
         }
     }
 }
