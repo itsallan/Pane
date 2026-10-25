@@ -29,7 +29,7 @@ Decisions made before the first line of code, and why. When code disagrees with 
 Each module is a SwiftPM target. Feature targets carry a `Feature` suffix so module names never collide with type names.
 
 **Domain** (Foundation only)
-- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `RecentStream`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `SubtitleCue`, `SubtitleStyle`, `PlaybackError`.
+- Entities: `MediaItem`, `LibraryFolder`, `LibraryEntry`, `MediaSource`, `NetworkServer`, `RecentStream`, `PlaybackState`, `PlaybackProgress`, `MediaTrack`, `Chapter`, `TrackPreferences`, `PlaybackPreferences`, `SubtitleCue`, `SubtitleStyle`, `AmbientPalette`, `PlaybackError`.
 - Protocols: `PlaybackEngine`, `ThumbnailProvider`, `NetworkBrowser`, `CredentialStore`, `NetworkServerRepository`, `StreamHistoryRepository`, `LibraryRepository`, `ProgressRepository`, `PreferencesRepository`, `MediaImporter`.
 - `MediaImporter` exists so LibraryFeature can add files and folders without seeing how bookmarks are made; Data implements it.
 - Use cases are small structs with one `callAsFunction`: `ResumePlayback`, `SaveProgress`, `PickPreferredTracks`, `LoadLibrary`, `ParseSubtitleCues`, `ParseStreamURL`, `AddToLibrary`. `SaveProgress` is an actor instead, because its throttle remembers the last write.
@@ -109,6 +109,8 @@ public protocol PlaybackEngine: Sendable {
     func setSubtitleDelay(_ delay: Duration) async
     func setSubtitleStyle(_ style: SubtitleStyle) async   // size at once; background and position from the next engine
     func captureFrame() async throws(PlaybackError) -> URL
+    func sampleAmbientPalette() async throws(PlaybackError) -> AmbientPalette   // 3x3 average colors
+    func setHardwareDecoding(_ isEnabled: Bool) async      // from the next load
     func close() async
 }
 
@@ -132,7 +134,9 @@ public struct PlaybackState: Sendable, Equatable {
 - **Frame step is on the engine.** It's a decoder operation (VLC's next-frame); nothing in the feature can emulate it. It steps forward only, as VLC does.
 - **The A-B loop is on the engine, with state in the feature.** A loop in `PlayerModel` would watch position ticks (about 4 Hz) and overshoot B by up to 250 ms each pass. The engine uses libvlc's native A-B loop, or checks the time on its own executor if that isn't available. `PlayerModel` only owns the UI for setting A and B.
 - **Video scaling is on the engine.** VLC crops and scales inside its video output, the same on every platform. A SwiftUI `scaleEffect` on the surface would stretch the layer and break subtitles, which VLC renders into the same frame. Pinch-to-fill is a gesture in `PlayerScreen` that calls `setVideoScaling(.fill)`.
-- **Subtitle style is split by when libvlc reads it.** Text scale is a player property and changes live. Background and margin are freetype and subpicture options that libvlc reads once, when a video output starts, from the libvlc instance. So `makeWithSurface(subtitleStyle:)` builds the player on a private instance carrying those options, and a change waits for the next player. The feature previews all three over the paused frame and says which ones wait.
+- **Subtitle style is split by when libvlc reads it.** Text scale is a player property and changes live. Background and margin are freetype and subpicture options that libvlc reads once, when a video output starts, from the libvlc instance. So `makeWithSurface(subtitleStyle:)` builds the player on a private instance carrying those options. Because two of the three only apply to the next player anyway, the style is a preference in Settings (with a preview over a sample frame), not something the player edits; `AppDependencies` keeps the latest style for the next session it builds.
+- **Hardware decoding is a media option.** On, the codec list is `videotoolbox,avcodec,all`. Off, it's `avcodec,all` with `avcodec-hw=none`, because avcodec would otherwise reach VideoToolbox through its own hwaccel. `PlayerModel` sets it from the preference before each `load`.
+- **The ambient palette is a tiny snapshot, not a thumbnail.** See Ambient backdrop below.
 - **Thumbnails are a separate protocol, `ThumbnailProvider`.** `func thumbnail(for: MediaSource, at: Duration, maxPixelSize: Int) async throws(PlaybackError) -> URL`.
   - It is separate from the engine because it has a different lifecycle (Library uses it for posters too) and has to run on its own VLC media instance so it never disturbs playback.
   - `VLCThumbnailProvider` wraps VLC's thumbnailer, rounds requests down to 5-second buckets, and caches JPEGs on disk under Caches, keyed by source and bucket. An in-memory index sits in the actor. It resolves `.networkShare` sources against the same server repository and credential store as the engine, with the credential in per-media options.
@@ -159,7 +163,7 @@ Errors: typed throws only where the caller can respond on the spot (an unresolva
 
 ## Use cases
 
-- **ResumePlayback**: loads the source, then seeks to the saved `PlaybackProgress` unless it's under 30 s or over 95% of the duration. Under 30 s, the user barely started and the intro is cheap to rewatch. Over 95%, they're in the credits, so starting over is what they want. If the duration is unknown (a live stream), it resumes only when the saved position is at least 30 s.
+- **ResumePlayback**: takes the `ResumeBehavior` preference. `.never` and `.ask` only load; `.ask` callers read `savedPosition(for:)` and offer it (the player shows a "Resume from" button for 10 s and keeps playing from the start). `.always` loads, then seeks to the saved `PlaybackProgress` unless it's under 30 s or over 95% of the duration. Under 30 s, the user barely started and the intro is cheap to rewatch. Over 95%, they're in the credits, so starting over is what they want. If the duration is unknown (a live stream), it resumes only when the saved position is at least 30 s.
 - **SaveProgress**: writes at most once every 10 s while playing. It also writes immediately on pause, on the end of a seek, on `close()` and when the scene moves to the background, so a kill loses at most 10 s. Passing 95% marks the item watched and clears the resume point. Throttling lives in the use case (a `ContinuousClock` timestamp), not the repository, so the fake repository sees the same writes the real one does.
 - **PickPreferredTracks**: runs once per `load`, when tracks first appear in the state. Language matching uses `Locale.Language`, so `en`, `eng` and `English` compare equal.
   - Audio: the first track matching `TrackPreferences.audioLanguages` in order. Otherwise the track the container marks as default. Otherwise the first track.
@@ -189,11 +193,40 @@ VLC quirks handled at the boundary:
 - **A share that never opens still reports itself open.** The capabilities notification arrives before libsmb2 gives up on an unresolvable host, so the engine treats an error on a share before any track appears as `.serverUnreachable`.
 - **Delegate names change between VLCKit 4 pre-releases.** The bridge is the only file that has to match them. Pin a version and check the headers on upgrade.
 
+## Ambient backdrop
+
+The player spreads the current frame's colors across the window behind the picture, so the letterbox carries the scene's light and the Liquid Glass controls have color to refract instead of flat black.
+
+- **The source is `sampleAmbientPalette()` on the engine, about once a second.** It asks the running video output for a 96 px wide snapshot (`saveVideoSnapshot` with a width, height 0 keeps the aspect), averages it into a 3x3 grid on the engine's executor, deletes the file and returns plain RGB values. The vout scales before it encodes, so a sample costs a tiny PNG rather than a decode.
+  - `ThumbnailProvider` was the other candidate. It opens the media a second time on its own instance, seeks and decodes a frame for every request, and rounds to 5 s buckets. For a stream that's a second network session per sample. It's the right tool for posters and scrubbing, not for following what's on screen.
+  - A per-frame pixel tap (libvlc's vmem callbacks) would replace the video output and lose Picture in Picture and VLC's subtitle rendering.
+  - The snapshot can't be smaller: libvlc's PNG encoder sizes its buffer from the raw pixels, and below about 64 px wide the PNG headers overflow it ("block size too small") and every capture fails.
+  - VLCKit only passes `--no-snapshot-preview` on iOS. On the Mac the engine adds it to the player's options, otherwise every sample would flash a thumbnail over the video. That costs the Mac a private libvlc instance per player.
+- **`AmbientLight` (PlayerFeature) owns the loop.** `PlayerScreen` runs it in a `.task(id:)` keyed on playing, having a video track, the scene being active and Reduce Transparency being off, so it stops on pause, in the background and in PiP. A sample with nothing brighter than 4% keeps the previous palette, so a fade to black doesn't wipe the wash. Nothing runs per frame on main: one small `@Observable` write a second at most.
+- **Drawing is a `MeshGradient`.** Nine colors over the whole window are already softer than any blur, at no per-frame cost. Each swatch is lifted toward a fixed brightness and saturated, because averaged colors come out muddy, then a scrim keeps white controls legible. A new palette cross-fades over 1.4 s. The play button's glass is tinted with the most colorful swatch.
+- **Reduce Motion** samples once and stops, so the wash is static. **Reduce Transparency** gets plain black and no sampling.
+- **The surface is sized to the picture in fit mode.** `PlayerScreen` frames the surface at the video's aspect ratio so the wash shows in the bars; fill and custom aspects get the whole window because VLC crops inside it. Subtitles therefore sit at the bottom of the picture rather than the bottom of the screen.
+
+## Player layout
+
+- Top: close and the title in one glass group. Center: play and pause in a large glass button between the skip buttons; when the controls appear the skip buttons split out of it (`GlassEffectContainer`, offset from behind the play button). Bottom: the scrubber alone in a floating capsule with both times and chapter notches.
+- Trailing edge: a slim glass rail with audio and subtitles, speed, PiP when supported, and More. Speed grows a row of rates out of the rail with `glassEffectID` and a matched-geometry glass transition. In portrait the rail sits above the timeline, under the picture; in landscape it's vertically centered and everything moves to compact insets.
+- The player always renders dark, sheets included: light glass over a black letterbox reads as grey plastic.
+- More opens the options as a glass sheet with medium and large detents on iOS and a popover from the rail on the Mac. It holds only what you change while watching: speed, volume, fit or fill, frame step, saving a frame, subtitle timing, the A-B loop, the sleep timer and chapters. Auto-hide waits while any sheet, the speed row, the sync panel or a scrub is open.
+
+## Preferences
+
+`PlaybackPreferences` (Domain) holds the default speed, the skip interval (10, 15 or 30 s), `ResumeBehavior`, hardware decoding, whether volume may go past 100%, and the iOS gestures (swipes for brightness and volume, double-tap to skip, hold for 2x). `TrackPreferences` holds preferred audio and subtitle languages and the subtitle mode. Both, and the subtitle style, go through `PreferencesRepository`; `UserDefaultsPreferencesRepository` stores playback preferences with every field optional so another version's value keeps what it can.
+
+- `PlayerModel` reads playback preferences in `load()`, before the engine opens the media, and exposes `skipInterval`, `gestures` and `maximumVolume` to the views. Now Playing's skip buttons and the Mac Playback menu use the current player's interval. `PickPreferredTracks` already reads `TrackPreferences` at the first playing state.
+- `SettingsFeature` is one grouped `Form`: Playback, Subtitles (style with a live preview, subtitle mode, languages), Audio (languages, volume boost), Gestures on iOS, iCloud, and About with the VLCKit acknowledgement and LGPL notice. Writes are queued so they land in order. Changes apply to the next video.
+
 ## Video surface
 
 VLC renders into a platform view assigned to `VLCMediaPlayer.drawable`: a `UIView` on iOS and iPadOS, and an `NSView` on macOS.
 
 - **Created once, together with the player.** `VLCPlaybackEngine.makeWithSurface()` is `@MainActor`. It creates the drawable view (`VideoDrawable`) and passes it to the engine's synchronous init, which runs on main, creates the `VLCMediaPlayer` and sets `drawable` there. The player is never `sending`: assigning the main-actor view to `drawable` would merge their regions, so a player built outside the actor couldn't be sent in. After init, the engine never touches the view.
+- **VLC's own view is pinned to the drawable.** libvlc adds a view inside the drawable sized from bounds it read on the vout thread, which are stale once `PlayerScreen` resizes the surface to the picture, and autoresizing then keeps it wrong. `VideoDrawable` sets its subviews to its bounds on every layout.
 - **The drawable outlives SwiftUI views.** `VideoSurface` is a `UIViewRepresentable` (or `NSViewRepresentable`) that returns a plain container and adds the session's persistent drawable as a subview. Rotation, fullscreen, column changes and window moves can recreate the representable, but they never free the drawable. If the drawable is freed mid-playback, VLC tears down its video output and the picture goes black.
 - **Features never see VLCKit.** The player screen is generic over its surface:
 
