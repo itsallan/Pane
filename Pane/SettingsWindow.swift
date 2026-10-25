@@ -7,13 +7,19 @@ struct SettingsWindow: View {
     @State private var model: SettingsModel
 
     init(dependencies: AppDependencies) {
-        _model = State(initialValue: SettingsModel(preferences: dependencies.preferences, launchStatus: dependencies.cloudSync))
+        _model = State(initialValue: SettingsModel(
+            preferences: dependencies.preferences,
+            launchStatus: dependencies.cloudSync,
+            onSubtitleStyleChange: { [dependencies] in dependencies.subtitleStyleDidChange($0) }
+        ))
     }
 
     var body: some View {
-        SettingsScreen(model: model)
-            .frame(width: 460)
-            .fixedSize(horizontal: false, vertical: true)
+        // A stack so the language lists can push; the window is tall enough for the whole form to scroll.
+        NavigationStack {
+            SettingsScreen(model: model)
+        }
+        .frame(width: 480, height: 640)
     }
 }
 #endif

@@ -46,7 +46,8 @@ final class AppRouter {
     )
     @ObservationIgnored private(set) lazy var settingsModel = SettingsModel(
         preferences: dependencies.preferences,
-        launchStatus: dependencies.cloudSync
+        launchStatus: dependencies.cloudSync,
+        onSubtitleStyleChange: { [dependencies] in dependencies.subtitleStyleDidChange($0) }
     )
     @ObservationIgnored private(set) lazy var openURLModel = OpenURLModel(history: dependencies.streamHistory)
 

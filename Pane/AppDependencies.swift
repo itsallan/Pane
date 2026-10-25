@@ -89,9 +89,9 @@ final class AppDependencies {
         subtitleStyle = (try? await preferences.subtitleStyle()) ?? SubtitleStyle()
     }
 
-    func saveSubtitleStyle(_ style: SubtitleStyle) async {
+    /// Settings saves the style itself; this only hands it to the next player.
+    func subtitleStyleDidChange(_ style: SubtitleStyle) {
         subtitleStyle = style
-        try? await preferences.save(style)
     }
 
     /// Opening a stream adds it to the library, which is what gives it resume and a Mac player window.
