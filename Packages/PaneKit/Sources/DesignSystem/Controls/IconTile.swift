@@ -14,7 +14,7 @@ public struct IconTile: View {
 
     public var body: some View {
         Image(systemName: systemImage)
-            .font(.body.weight(.semibold))
+            .font(.footnote.weight(.semibold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
             .background(tint.gradient, in: .rect(cornerRadius: Metrics.iconTileCornerRadius))

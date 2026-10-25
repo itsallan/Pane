@@ -6,27 +6,24 @@ struct NearbyServersSection: View {
     let servers: [NetworkServer]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Metrics.sectionHeaderSpacing) {
-            SectionHeader("Nearby") {
-                // Discovery never finishes, so the spinner stays as a sign it's still listening.
-                ProgressView()
-                    .controlSize(.small)
-                    .accessibilityLabel("Looking for servers")
-            }
-            if servers.isEmpty {
-                SearchingCard()
-                    .padding(.horizontal, Metrics.edgeInset)
-            } else {
-                ServerGrid {
-                    ForEach(servers) { server in
-                        ServerTile(server: server)
-                    }
+        Section {
+            ForEach(servers) { server in
+                NavigationLink(value: server.rootRoute) {
+                    ServerRow(server: server)
                 }
             }
-            Text("Pane finds SMB and UPnP servers on your network. Add SFTP servers, or SMB servers that don't show up, by hand.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, Metrics.edgeInset)
+            // Discovery never finishes, so an empty list always means it's still looking.
+            if servers.isEmpty {
+                HStack(spacing: Metrics.controlSpacing) {
+                    ProgressView()
+                    Text("Searching…")
+                        .foregroundStyle(.secondary)
+                }
+            }
+        } header: {
+            Text("Nearby")
+        } footer: {
+            Text("SMB and UPnP servers on this network show up here. Add SFTP servers by hand.")
         }
     }
 }

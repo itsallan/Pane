@@ -6,8 +6,7 @@ struct EntryRow: View {
     let entry: NetworkEntry
 
     var body: some View {
-        HStack(spacing: Metrics.controlSpacing + 4) {
-            IconTile(systemImage: entry.symbolName, tint: entry.tint)
+        Label {
             VStack(alignment: .leading, spacing: 2) {
                 Text(entry.name)
                     .lineLimit(2)
@@ -21,6 +20,8 @@ struct EntryRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+        } icon: {
+            IconTile(systemImage: entry.symbolName, tint: entry.tint)
         }
     }
 }
