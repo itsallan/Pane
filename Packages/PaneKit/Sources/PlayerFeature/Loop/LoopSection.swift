@@ -5,15 +5,18 @@ struct LoopSection: View {
     let loop: ABLoop
 
     var body: some View {
-        OptionsSection(title: "Repeat") {
-            HStack {
-                Button(markTitle, systemImage: markSymbol, action: loop.mark)
-                    .buttonStyle(.bordered)
-                Spacer()
+        Section {
+            LabeledContent {
                 Text(status)
                     .font(.timecode)
                     .foregroundStyle(.secondary)
+            } label: {
+                Button(markTitle, systemImage: markSymbol, action: loop.mark)
             }
+        } header: {
+            Text("Repeat")
+        } footer: {
+            Text("Mark a start and an end to play that stretch on a loop.")
         }
     }
 

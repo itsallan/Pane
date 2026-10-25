@@ -5,7 +5,7 @@ struct SpeedSection: View {
     @Bindable var model: PlayerModel
 
     var body: some View {
-        OptionsSection(title: "Speed") {
+        Section("Speed") {
             HStack {
                 Slider(value: $model.speed, in: PlayerModel.rates) {
                     Text("Speed")
@@ -17,9 +17,9 @@ struct SpeedSection: View {
                 .accessibilityValue(model.speed.rateLabel)
                 Text(model.speed.rateLabel)
                     .font(.indicatorValue)
-                    .frame(minWidth: 52, alignment: .trailing)
+                    .frame(minWidth: Metrics.valueLabelMinWidth, alignment: .trailing)
             }
-            Button("Normal Speed", action: resetSpeed)
+            Button("Normal Speed", systemImage: "gauge.with.dots.needle.50percent", action: resetSpeed)
                 .disabled(model.speed == 1)
         }
     }

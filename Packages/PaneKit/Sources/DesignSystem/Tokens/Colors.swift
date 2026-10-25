@@ -6,4 +6,8 @@ extension Color {
     public static let scrubberTrack = Color.primary.opacity(0.22)
     public static let scrubberFill = Color.primary
     public static let levelBoost = Color.orange
+    /// Over the ambient wash, so white chrome stays legible on a bright frame.
+    /// Marks the chosen item inside a glass capsule, where a tint would fight the colors coming through.
+    public static let glassSelection = Color.white.opacity(0.22)
+    public static let ambientScrim = Color.black.opacity(0.25)
 }

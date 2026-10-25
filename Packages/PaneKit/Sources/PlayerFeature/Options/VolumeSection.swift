@@ -5,9 +5,9 @@ struct VolumeSection: View {
     @Bindable var model: PlayerModel
 
     var body: some View {
-        OptionsSection(title: "Volume") {
+        Section {
             HStack {
-                Slider(value: $model.volumeLevel, in: 0...2) {
+                Slider(value: $model.volumeLevel, in: 0...model.maximumVolume) {
                     Text("Volume")
                 } minimumValueLabel: {
                     Image(systemName: "speaker.fill")
@@ -21,12 +21,15 @@ struct VolumeSection: View {
                 Text(percentage)
                     .font(.indicatorValue)
                     .foregroundStyle(isBoosted ? AnyShapeStyle(Color.levelBoost) : AnyShapeStyle(.primary))
-                    .frame(minWidth: 52, alignment: .trailing)
+                    .frame(minWidth: Metrics.valueLabelMinWidth, alignment: .trailing)
             }
+        } header: {
+            Text("Volume")
+        } footer: {
             if isBoosted {
-                Label("Boosted past 100% can distort loud scenes.", systemImage: "exclamationmark.triangle")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
+                Text("Past 100% can distort loud scenes.")
+            } else if !model.allowsVolumeBoost {
+                Text("Turn on volume boost in Settings to go past 100%.")
             }
         }
     }

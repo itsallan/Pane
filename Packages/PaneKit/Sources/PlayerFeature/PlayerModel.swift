@@ -5,7 +5,6 @@ import Observation
 @MainActor
 @Observable
 public final class PlayerModel {
-    public static let skipInterval = Duration.seconds(10)
     static let autoHideDelay = Duration.seconds(3)
     static let seekTolerance = Duration.seconds(1)
     static let seekTimeout = Duration.seconds(2)
@@ -17,6 +16,7 @@ public final class PlayerModel {
     static let maxShuttleBackStep = 3
     public static let rates = 0.5...3.0
     static let thumbnailPixelSize = 320
+    static let resumeOfferDuration = Duration.seconds(10)
 
     public let title: String?
 
@@ -33,6 +33,12 @@ public final class PlayerModel {
     public private(set) var loadFailure: PlaybackError?
     public private(set) var isPictureInPictureSupported = false
     public private(set) var isPictureInPictureActive = false
+    public private(set) var videoSize: VideoSize?
+    public private(set) var skipInterval = PlaybackPreferences().skipInterval
+    public private(set) var gestures = GesturePreferences()
+    public private(set) var allowsVolumeBoost = true
+    /// Where an unfinished item left off, while the resume preference is `.ask` and the offer still stands.
+    public private(set) var resumeOffer: Duration?
 
     public private(set) var areControlsVisible = true
     public private(set) var isScrubbing = false
@@ -45,30 +51,35 @@ public final class PlayerModel {
     public var isTrackSheetPresented = false {
         didSet { presentationDidChange(from: oldValue, to: isTrackSheetPresented) }
     }
+    public var isSpeedPickerPresented = false {
+        didSet { presentationDidChange(from: oldValue, to: isSpeedPickerPresented) }
+    }
     public var subtitleImportFailed = false
     public let subtitleSync: SubtitleSync
-    public let subtitleAppearance: SubtitleAppearance
     public let loop: ABLoop
     public let sleepTimer: SleepTimer
     public let snapshot: FrameSnapshot
+    public let ambient: AmbientLight
 
     private let engine: any PlaybackEngine
     private let item: MediaItem
     private let resume: ResumePlayback?
     private let recordProgress: (@Sendable (PlaybackProgress, SaveProgressTrigger) async -> Void)?
     private let pickTracks: PickPreferredTracks?
+    private let preferences: (any PreferencesRepository)?
     private let thumbnails: (any ThumbnailProvider)?
     private let screenBrightness: (any ScreenBrightness)?
     private let originalBrightness: Double?
-    private let elapsed: @Sendable () -> Duration
+    let elapsed: @Sendable () -> Duration
     private let sleep: @Sendable (Duration) async throws -> Void
 
     // VLC keeps reporting the pre-seek time for a moment after a seek, which would snap the playhead back.
     private var pendingSeek: (target: Duration, deadline: Duration)?
     private var isAdjustingVolume = false
     private var rateBeforeBoost = 1.0
-    private var rateBeforeShuttle: Double?
-    private var lastShuttleBack: (step: Int, at: Duration)?
+    // Internal for the keyboard shuttle in PlayerModel+Keyboard.swift.
+    var rateBeforeShuttle: Double?
+    var lastShuttleBack: (step: Int, at: Duration)?
     // Until the resume seek lands, the engine reports the pre-seek time, which must neither show nor be saved.
     private var resumeTarget: Duration?
     private var resumeDeadline: Duration?
@@ -81,6 +92,7 @@ public final class PlayerModel {
     private var hasStartedLoading = false
     private var hideTask: Task<Void, Never>?
     private var thumbnailTask: Task<Void, Never>?
+    private var resumeOfferExpiry: Task<Void, Never>?
     private var requestedThumbnailSecond: Int64?
 
     /// Plays a source without resuming, saving progress or picking tracks.
@@ -100,8 +112,7 @@ public final class PlayerModel {
             resume: nil,
             recordProgress: nil,
             pickTracks: nil,
-            subtitleStyle: SubtitleStyle(),
-            saveSubtitleStyle: nil,
+            preferences: nil,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
             photoLibrary: photoLibrary,
@@ -109,15 +120,15 @@ public final class PlayerModel {
         )
     }
 
-    /// Plays a library item: resumes where it left off, saves progress as it plays and picks the preferred tracks.
+    /// Plays a library item: resumes where it left off, saves progress as it plays, picks the preferred tracks
+    /// and applies the playback preferences when it loads.
     public convenience init<C: Clock<Duration>, P: Clock<Duration>>(
         engine: any PlaybackEngine,
         item: MediaItem,
         resume: ResumePlayback,
         saveProgress: SaveProgress<P>,
         pickTracks: PickPreferredTracks,
-        subtitleStyle: SubtitleStyle = SubtitleStyle(),
-        saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)? = nil,
+        preferences: (any PreferencesRepository)? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
         photoLibrary: (any PhotoLibrary)? = nil,
@@ -130,8 +141,7 @@ public final class PlayerModel {
             resume: resume,
             recordProgress: { progress, trigger in try? await saveProgress(progress, trigger: trigger) },
             pickTracks: pickTracks,
-            subtitleStyle: subtitleStyle,
-            saveSubtitleStyle: saveSubtitleStyle,
+            preferences: preferences,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
             photoLibrary: photoLibrary,
@@ -146,8 +156,7 @@ public final class PlayerModel {
         resume: ResumePlayback?,
         recordProgress: (@Sendable (PlaybackProgress, SaveProgressTrigger) async -> Void)?,
         pickTracks: PickPreferredTracks?,
-        subtitleStyle: SubtitleStyle,
-        saveSubtitleStyle: (@Sendable (SubtitleStyle) async -> Void)?,
+        preferences: (any PreferencesRepository)?,
         thumbnails: (any ThumbnailProvider)?,
         screenBrightness: (any ScreenBrightness)?,
         photoLibrary: (any PhotoLibrary)?,
@@ -157,11 +166,11 @@ public final class PlayerModel {
         self.item = item
         subtitleSync = SubtitleSync(engine: engine)
         loop = ABLoop(engine: engine)
-        subtitleAppearance = SubtitleAppearance(engine: engine, style: subtitleStyle, save: saveSubtitleStyle)
         self.title = title
         self.resume = resume
         self.recordProgress = recordProgress
         self.pickTracks = pickTracks
+        self.preferences = preferences
         self.thumbnails = thumbnails
         self.screenBrightness = screenBrightness
         let origin = clock.now
@@ -169,13 +178,12 @@ public final class PlayerModel {
         sleep = { try await clock.sleep(for: $0) }
         sleepTimer = SleepTimer(engine: engine, sleep: sleep)
         snapshot = FrameSnapshot(engine: engine, photoLibrary: photoLibrary, sleep: sleep)
+        ambient = AmbientLight(engine: engine, sleep: sleep)
         originalBrightness = screenBrightness?.level
         brightness = originalBrightness
         subtitleSync.currentPosition = { [weak self] in self?.position ?? .zero }
         loop.currentPosition = { [weak self] in self?.position ?? .zero }
         subtitleSync.onActiveChange = { [weak self] in self?.revealControls() }
-        subtitleAppearance.isPlaying = { [weak self] in self?.isPlaybackActive ?? false }
-        subtitleAppearance.onEditingChange = { [weak self] in self?.revealControls() }
     }
 
     public var failure: PlaybackError? {
@@ -351,10 +359,13 @@ public final class PlayerModel {
     private func load() async {
         loadFailure = nil
         hasPickedTracks = false
+        let preferences = await loadPreferences()
         do {
             if let resume {
-                if let resumed = try await resume(item) {
+                if let resumed = try await resume(item, behavior: preferences.resume) {
                     awaitResume(at: resumed)
+                } else if preferences.resume == .ask, let saved = await resume.savedPosition(for: item) {
+                    offerResume(at: saved)
                 }
             } else {
                 try await engine.load(item.source)
@@ -362,6 +373,20 @@ public final class PlayerModel {
         } catch {
             loadFailure = error
         }
+        // The engine starts every load at 1x.
+        if loadFailure == nil, preferences.defaultRate != 1 {
+            setRate(preferences.defaultRate)
+        }
+    }
+
+    private func loadPreferences() async -> PlaybackPreferences {
+        guard let preferences else { return PlaybackPreferences() }
+        let loaded = (try? await preferences.playbackPreferences()) ?? PlaybackPreferences()
+        skipInterval = loaded.skipInterval
+        gestures = loaded.gestures
+        allowsVolumeBoost = loaded.allowsVolumeBoost
+        await engine.setHardwareDecoding(loaded.usesHardwareDecoding)
+        return loaded
     }
 
     private func awaitResume(at target: Duration) {
@@ -451,9 +476,11 @@ extension PlayerModel {
         isAdjustingVolume = true
     }
 
-    /// `0...2`; above 1 is boost.
+    /// `0...maximumVolume`; above 1 is boost.
+    public var maximumVolume: Double { allowsVolumeBoost ? 2 : 1 }
+
     public func setVolume(_ level: Double) {
-        let level = min(max(level, 0), 2)
+        let level = min(max(level, 0), maximumVolume)
         volume = level
         Task { [engine] in await engine.setVolume(level) }
     }
@@ -484,68 +511,30 @@ extension PlayerModel {
     }
 }
 
-// MARK: - Keyboard
+// MARK: - Resume offer
 
 extension PlayerModel {
-    public var canSlowDown: Bool { rate > Self.rates.lowerBound }
-    public var canSpeedUp: Bool { rate < Self.rates.upperBound }
-
-    /// Moves to the next quarter step, so an odd rate from the slider lands back on the grid.
-    public func slowDown() {
-        setRate(((rate - Self.rateStep) / Self.rateStep).rounded(.up) * Self.rateStep)
+    public func acceptResumeOffer() {
+        guard let resumeOffer else { return }
+        dismissResumeOffer()
+        seek(to: resumeOffer)
     }
 
-    public func speedUp() {
-        setRate(((rate + Self.rateStep) / Self.rateStep).rounded(.down) * Self.rateStep)
+    public func dismissResumeOffer() {
+        resumeOfferExpiry?.cancel()
+        resumeOffer = nil
     }
 
-    public func raiseVolume() {
-        revealControls()
-        setVolume(((volume + Self.volumeStep) * 10).rounded() / 10)
-    }
-
-    public func lowerVolume() {
-        revealControls()
-        setVolume(((volume - Self.volumeStep) * 10).rounded() / 10)
-    }
-
-    /// L: plays, and each further press while playing goes faster.
-    public func shuttleForward() {
-        lastShuttleBack = nil
-        guard isPlaybackActive, status != .ended else {
-            togglePlayback()
-            return
+    private func offerResume(at position: Duration) {
+        resumeOffer = position
+        resumeOfferExpiry = Task { [weak self, sleep] in
+            do {
+                try await sleep(Self.resumeOfferDuration)
+            } catch {
+                return
+            }
+            self?.resumeOffer = nil
         }
-        revealControls()
-        guard let next = Self.shuttleRates.first(where: { $0 > rate }) else { return }
-        let before = rateBeforeShuttle ?? rate
-        setRate(next)
-        rateBeforeShuttle = before
-    }
-
-    /// K: pauses and drops any shuttle speed.
-    public func shuttleStop() {
-        lastShuttleBack = nil
-        endShuttle()
-        pause()
-    }
-
-    // libvlc can't play in reverse, so J jumps back instead, doubling the jump on each press that follows quickly.
-    public func shuttleBackward() {
-        endShuttle()
-        let now = elapsed()
-        var step = 0
-        if let lastShuttleBack, now - lastShuttleBack.at <= Self.shuttleRepeatWindow {
-            step = min(lastShuttleBack.step + 1, Self.maxShuttleBackStep)
-        }
-        lastShuttleBack = (step, now)
-        skip(by: .zero - Self.skipInterval * (1 << step))
-    }
-
-    private func endShuttle() {
-        guard let rateBeforeShuttle else { return }
-        self.rateBeforeShuttle = nil
-        setRate(rateBeforeShuttle)
     }
 }
 
@@ -599,8 +588,8 @@ extension PlayerModel {
     }
 
     private var canAutoHide: Bool {
-        isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented && !subtitleSync.isActive
-            && !subtitleAppearance.isEditing
+        isPlaying && !isScrubbing && !isMenuPresented && !isTrackSheetPresented && !isSpeedPickerPresented
+            && !subtitleSync.isActive
     }
 
     private func presentationDidChange(from oldValue: Bool, to isPresented: Bool) {
@@ -638,6 +627,7 @@ extension PlayerModel {
         assign(\.selectedTrackIDs, state.selectedTrackIDs)
         assign(\.isPictureInPictureSupported, state.isPictureInPictureSupported)
         assign(\.isPictureInPictureActive, state.isPictureInPictureActive)
+        assign(\.videoSize, state.videoSize)
         subtitleSync.update(from: state)
         loop.update(from: state)
         if !isSpeedBoosted {

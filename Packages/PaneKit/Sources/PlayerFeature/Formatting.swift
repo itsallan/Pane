@@ -63,9 +63,3 @@ extension PlaybackError {
         }
     }
 }
-
-extension Double {
-    var rateLabel: String {
-        formatted(.number.precision(.fractionLength(0...2))) + "×"
-    }
-}

@@ -30,13 +30,15 @@ struct PlaybackCommands: Commands {
             .keyboardShortcut(.space, modifiers: [])
             .disabled(model == nil)
             Divider()
-            Button("Skip Back 10 Seconds") {
-                model?.skip(by: .zero - PlayerModel.skipInterval)
+            Button("Skip Back \(skipSeconds) Seconds") {
+                guard let model else { return }
+                model.skip(by: .zero - model.skipInterval)
             }
             .keyboardShortcut(.leftArrow, modifiers: [])
             .disabled(model?.isSeekable != true)
-            Button("Skip Forward 10 Seconds") {
-                model?.skip(by: PlayerModel.skipInterval)
+            Button("Skip Forward \(skipSeconds) Seconds") {
+                guard let model else { return }
+                model.skip(by: model.skipInterval)
             }
             .keyboardShortcut(.rightArrow, modifiers: [])
             .disabled(model?.isSeekable != true)
@@ -90,6 +92,10 @@ struct PlaybackCommands: Commands {
             .keyboardShortcut("f", modifiers: [])
             .disabled(model == nil)
         }
+    }
+
+    private var skipSeconds: Int {
+        Int((player?.model.skipInterval ?? PlaybackPreferences().skipInterval).components.seconds)
     }
 
     private var model: PlayerModel? {

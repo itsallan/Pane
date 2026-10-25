@@ -25,10 +25,12 @@ struct PlaybackGestureLayer: View {
         GeometryReader { proxy in
             Color.clear
                 .contentShape(.rect)
-                .gesture(taps(in: proxy.size))
+                // Without double-tap seeking, a single tap shouldn't wait out the double-tap window.
+                .gesture(taps(in: proxy.size), isEnabled: model.gestures.doubleTapSeeks)
+                .gesture(singleTap, isEnabled: !model.gestures.doubleTapSeeks)
                 .simultaneousGesture(panGesture(in: proxy.size))
                 .simultaneousGesture(pinch)
-                .simultaneousGesture(speedBoost)
+                .simultaneousGesture(speedBoost, isEnabled: model.gestures.longPressSpeedsUp)
                 .overlay {
                     if let seekFeedback {
                         SeekFeedbackView(feedback: seekFeedback)
@@ -38,7 +40,7 @@ struct PlaybackGestureLayer: View {
                 }
                 .overlay(alignment: .trailing) {
                     if case .volume = pan {
-                        LevelIndicator(title: "Volume", systemImage: "speaker.wave.2", level: model.volume, maximum: 2)
+                        LevelIndicator(title: "Volume", systemImage: "speaker.wave.2", level: model.volume, maximum: model.maximumVolume)
                             .padding(.trailing, Metrics.edgeInset * 2)
                             .transition(.opacity)
                     }
@@ -66,25 +68,32 @@ struct PlaybackGestureLayer: View {
         .accessibilityHint("Shows or hides the playback controls.")
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { model.toggleControls() }
-        .accessibilityAction(named: "Skip Back 10 Seconds") { model.skip(by: .zero - PlayerModel.skipInterval) }
-        .accessibilityAction(named: "Skip Forward 10 Seconds") { model.skip(by: PlayerModel.skipInterval) }
+        .accessibilityAction(named: "Skip Back \(skipSeconds) Seconds") { model.skip(by: .zero - model.skipInterval) }
+        .accessibilityAction(named: "Skip Forward \(skipSeconds) Seconds") { model.skip(by: model.skipInterval) }
         .accessibilityAction(named: model.videoScaling == .fill ? "Fit Video to Screen" : "Fill Screen with Video") {
             model.toggleVideoScaling()
         }
     }
 
+    private var skipSeconds: Int {
+        Int(model.skipInterval.components.seconds)
+    }
+
     private func taps(in size: CGSize) -> some Gesture {
         SpatialTapGesture(count: 2)
             .onEnded { tap in doubleTap(at: tap.location, in: size) }
-            .exclusively(before: SpatialTapGesture().onEnded { _ in model.toggleControls() })
+            .exclusively(before: singleTap)
+    }
+
+    private var singleTap: some Gesture {
+        SpatialTapGesture().onEnded { _ in model.toggleControls() }
     }
 
     private func doubleTap(at location: CGPoint, in size: CGSize) {
         guard model.isSeekable else { return }
         let side: SeekFeedback.Side = location.x < size.width / 2 ? .leading : .trailing
-        let step = Int(PlayerModel.skipInterval.components.seconds)
-        model.skip(by: side == .leading ? .zero - PlayerModel.skipInterval : PlayerModel.skipInterval)
-        var next = SeekFeedback(side: side, location: location, seconds: step)
+        model.skip(by: side == .leading ? .zero - model.skipInterval : model.skipInterval)
+        var next = SeekFeedback(side: side, location: location, seconds: skipSeconds)
         if let seekFeedback, seekFeedback.side == side {
             next.seconds += seekFeedback.seconds
         }
@@ -127,6 +136,8 @@ struct PlaybackGestureLayer: View {
             guard model.canScrub else { return }
             model.beginScrub()
             pan = .scrub(fraction: model.fraction, translation: drag.translation.width)
+        } else if !model.gestures.adjustsBrightnessAndVolume {
+            return
         } else if drag.startLocation.x >= size.width / 2 {
             model.beginVolumeAdjustment()
             pan = .volume(start: model.volume)

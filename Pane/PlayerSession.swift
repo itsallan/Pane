@@ -33,8 +33,7 @@ final class PlayerSession: Identifiable {
             resume: ResumePlayback(engine: engine, progress: dependencies.progress),
             saveProgress: SaveProgress(item: item.id, repository: dependencies.progress),
             pickTracks: PickPreferredTracks(engine: engine, preferences: dependencies.preferences),
-            subtitleStyle: dependencies.subtitleStyle,
-            saveSubtitleStyle: { await dependencies.saveSubtitleStyle($0) },
+            preferences: dependencies.preferences,
             thumbnails: dependencies.thumbnails,
             screenBrightness: brightness,
             photoLibrary: SystemPhotoLibrary()

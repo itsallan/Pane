@@ -1,24 +1,30 @@
 import SwiftUI
 
+/// Only what you change while watching. Preferences that outlive this video live in Settings.
 struct OptionsPanel: View {
     let model: PlayerModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                SpeedSection(model: model)
-                VolumeSection(model: model)
-                if model.isSeekable {
-                    LoopSection(loop: model.loop)
-                }
-                PictureSection(model: model)
-                SleepTimerSection(timer: model.sleepTimer)
-                if !model.chapters.isEmpty {
-                    ChapterSection(model: model)
-                }
+        Form {
+            SpeedSection(model: model)
+            VolumeSection(model: model)
+            PictureSection(model: model)
+            if !model.areSubtitlesOff {
+                SubtitleTimingSection(sync: model.subtitleSync, onSyncByEar: syncByEar)
             }
-            .padding(20)
+            if model.isSeekable {
+                LoopSection(loop: model.loop)
+            }
+            SleepTimerSection(timer: model.sleepTimer)
+            if !model.chapters.isEmpty {
+                ChapterSection(model: model)
+            }
         }
-        .frame(minWidth: 300, idealWidth: 340, maxHeight: 480)
+        .formStyle(.grouped)
+    }
+
+    private func syncByEar() {
+        model.isMenuPresented = false
+        model.subtitleSync.begin()
     }
 }

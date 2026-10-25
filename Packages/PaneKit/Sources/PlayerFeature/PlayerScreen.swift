@@ -9,6 +9,7 @@ public struct PlayerScreen<Surface: View>: View {
     private let surface: Surface
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.scenePhase) private var scenePhase
 
     public init(model: PlayerModel, onDismiss: (() -> Void)? = nil, @ViewBuilder surface: () -> Surface) {
@@ -19,29 +20,38 @@ public struct PlayerScreen<Surface: View>: View {
 
     public var body: some View {
         ZStack {
-            Color.mediaBackground
+            AmbientBackdrop(palette: model.ambient.palette)
                 .ignoresSafeArea()
-            surface
+            VideoFrame(aspectRatio: videoAspectRatio) { surface }
                 .ignoresSafeArea()
                 .accessibilityHidden(true)
             interactionLayer
                 .ignoresSafeArea()
-            if model.subtitleAppearance.isEditing {
-                SubtitleStylePreview(style: model.subtitleAppearance.style)
-                    .ignoresSafeArea()
-            }
             StatusOverlay(model: model)
-            chrome
+            PlayerChrome(model: model, onDismiss: onDismiss)
         }
-        .animation(reduceMotion ? .linear(duration: 0.15) : .smooth(duration: 0.3), value: model.areControlsVisible)
-        .animation(.smooth(duration: 0.2), value: model.isSpeedBoosted)
-        .animation(.smooth(duration: 0.3), value: model.subtitleSync.phase)
-        .animation(.smooth(duration: 0.3), value: model.subtitleAppearance.isEditing)
-        .animation(.smooth(duration: 0.2), value: model.snapshot.outcome)
+        .animation(.chrome(reduceMotion: reduceMotion), value: model.areControlsVisible)
+        .animation(.quickFade, value: model.isSpeedBoosted)
+        .animation(.chrome, value: model.subtitleSync.phase)
+        .animation(.quickFade, value: model.snapshot.outcome)
+        .animation(.quickFade, value: model.resumeOffer)
         .sheet(isPresented: $model.isTrackSheetPresented) {
             TrackSheet(model: model)
+                .preferredColorScheme(.dark)
         }
+        #if os(iOS)
+        .sheet(isPresented: $model.isMenuPresented) {
+            OptionsSheet(model: model)
+                .preferredColorScheme(.dark)
+        }
+        #endif
+        // Video is watched in the dark whatever the system appearance; light glass over a black letterbox reads as grey plastic.
+        .environment(\.colorScheme, .dark)
         .task { await model.run() }
+        .task(id: samplesAmbientLight) {
+            guard samplesAmbientLight else { return }
+            await model.ambient.run(once: reduceMotion)
+        }
         .onChange(of: scenePhase) { _, phase in
             sceneDidChange(to: phase)
         }
@@ -49,7 +59,7 @@ public struct PlayerScreen<Surface: View>: View {
         #if os(iOS)
         .statusBarHidden(!model.areControlsVisible)
         #else
-        // On the whole screen rather than the layer under the chrome, so pointing at the capsule doesn't count as leaving.
+        // On the whole screen rather than the layer under the chrome, so pointing at the controls doesn't count as leaving.
         .onContinuousHover { phase in
             switch phase {
             case .active: model.revealControls()
@@ -57,6 +67,18 @@ public struct PlayerScreen<Surface: View>: View {
             }
         }
         #endif
+    }
+
+    // Sampling stops whenever nobody would see the wash change: paused, in the background, or with Reduce Transparency.
+    private var samplesAmbientLight: Bool {
+        model.isPlaying && model.hasVideo && scenePhase == .active && !reduceTransparency
+    }
+
+    // Fit mode sizes the surface to the picture, so letterboxing shows the ambient wash instead of VLC's black.
+    // Fill and custom aspects crop inside VLC, which needs the whole window.
+    private var videoAspectRatio: CGFloat? {
+        guard model.videoScaling == .fit, let size = model.videoSize, size.width > 0, size.height > 0 else { return nil }
+        return CGFloat(size.width) / CGFloat(size.height)
     }
 
     @ViewBuilder
@@ -72,50 +94,6 @@ public struct PlayerScreen<Surface: View>: View {
         #endif
     }
 
-    private var chrome: some View {
-        VStack(spacing: 0) {
-            if model.areControlsVisible {
-                TopBar(model: model, onDismiss: onDismiss)
-                    .transition(chromeTransition(edge: .top))
-            }
-            if let outcome = model.snapshot.outcome {
-                SnapshotToast(outcome: outcome)
-                    .padding(.top, Metrics.controlSpacing)
-                    .transition(.opacity)
-            }
-            // Up top, because libvlc draws subtitles along the bottom of the whole surface and the preview has to stay clear.
-            if model.subtitleAppearance.isEditing {
-                SubtitleStylePanel(appearance: model.subtitleAppearance)
-                    .padding(.top, Metrics.controlSpacing)
-                    .transition(chromeTransition(edge: .top))
-            }
-            Spacer(minLength: 0)
-            if model.isSpeedBoosted {
-                Label("2× Speed", systemImage: "forward.fill")
-                    .font(.indicatorValue)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .glassEffect(.regular, in: .capsule)
-                    .padding(.bottom, 16)
-                    .transition(.opacity)
-            }
-            if let range = model.loop.range, model.areControlsVisible, !model.subtitleAppearance.isEditing {
-                LoopBadge(range: range, onClear: model.loop.clear)
-                    .padding(.bottom, Metrics.controlSpacing)
-                    .transition(.opacity)
-            }
-            if model.subtitleSync.isActive {
-                SubtitleSyncPanel(sync: model.subtitleSync)
-                    .transition(chromeTransition(edge: .bottom))
-            } else if model.areControlsVisible, !model.subtitleAppearance.isEditing {
-                ControlCapsule(model: model)
-                    .transition(chromeTransition(edge: .bottom))
-            }
-        }
-        .padding(.horizontal, Metrics.edgeInset)
-        .padding(.bottom, 8)
-    }
-
     private func sceneDidChange(to phase: ScenePhase) {
         switch phase {
         case .active: model.sceneDidBecomeActive()
@@ -128,87 +106,20 @@ public struct PlayerScreen<Surface: View>: View {
         @unknown default: break
         }
     }
-
-    private func chromeTransition(edge: Edge) -> AnyTransition {
-        reduceMotion ? .opacity : .move(edge: edge).combined(with: .opacity)
-    }
 }
 
-private struct TopBar: View {
-    let model: PlayerModel
-    let onDismiss: (() -> Void)?
+/// Centers the surface at the video's aspect ratio, or lets it fill the space when there isn't one.
+private struct VideoFrame<Content: View>: View {
+    let aspectRatio: CGFloat?
+    @ViewBuilder let content: Content
 
     var body: some View {
-        GlassEffectContainer {
-            HStack(spacing: Metrics.controlSpacing) {
-                if let onDismiss {
-                    TransportButton("Close", systemImage: "xmark", action: onDismiss)
-                        .glassEffect(.regular.interactive(), in: .circle)
-                }
-                if let title = model.title {
-                    Text(title)
-                        .font(.headline)
-                        .lineLimit(1)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: Metrics.minimumHitTarget)
-                        .glassEffect(.regular, in: .capsule)
-                        .accessibilityAddTraits(.isHeader)
-                }
-                Spacer(minLength: 0)
-                if model.canUsePictureInPicture {
-                    TransportButton(
-                        model.isPictureInPictureActive ? "Stop Picture in Picture" : "Start Picture in Picture",
-                        systemImage: model.isPictureInPictureActive ? "pip.exit" : "pip.enter",
-                        action: model.togglePictureInPicture
-                    )
-                    .glassEffect(.regular.interactive(), in: .circle)
-                }
-                if model.snapshot.isAvailable {
-                    TransportButton("Save Frame to Photos", systemImage: "camera", action: saveFrame)
-                        .glassEffect(.regular.interactive(), in: .circle)
-                        .disabled(model.snapshot.isSaving)
-                }
-            }
+        if let aspectRatio {
+            content
+                .aspectRatio(aspectRatio, contentMode: .fit)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            content
         }
-        .padding(.top, 8)
-    }
-
-    private func saveFrame() {
-        Task { await model.snapshot.capture() }
-    }
-}
-
-private struct StatusOverlay: View {
-    let model: PlayerModel
-
-    var body: some View {
-        Group {
-            if let failure = model.failure {
-                VStack(spacing: 12) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.largeTitle)
-                        .symbolRenderingMode(.hierarchical)
-                        .accessibilityHidden(true)
-                    Text(failure.message)
-                        .font(.headline)
-                        .multilineTextAlignment(.center)
-                    Button("Try Again", action: model.retry)
-                        .buttonStyle(.glassProminent)
-                }
-                .padding(24)
-                .frame(maxWidth: 340)
-                .glassEffect(.regular, in: .rect(cornerRadius: 28))
-                .padding(Metrics.edgeInset)
-                .accessibilityElement(children: .contain)
-            } else if model.isBuffering && !model.isScrubbing {
-                ProgressView()
-                    .controlSize(.large)
-                    .frame(width: 72, height: 72)
-                    .glassEffect(.regular, in: .circle)
-                    .accessibilityLabel("Loading")
-            }
-        }
-        .transition(.opacity)
-        .animation(.smooth(duration: 0.2), value: model.isBuffering)
     }
 }

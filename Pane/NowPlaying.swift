@@ -169,21 +169,24 @@ final class NowPlaying {
         commands.skipBackwardCommand.isEnabled = isSeekable
         commands.changePlaybackPositionCommand.isEnabled = isSeekable && state?.progress.duration != nil
         commands.changePlaybackRateCommand.isEnabled = state != nil
+        // Each player reads its own skip interval when it loads, so the system's skip buttons follow whichever is current.
+        let interval = NSNumber(value: (current?.model.skipInterval ?? PlaybackPreferences().skipInterval).seconds)
+        if commands.skipForwardCommand.preferredIntervals != [interval] {
+            commands.skipForwardCommand.preferredIntervals = [interval]
+            commands.skipBackwardCommand.preferredIntervals = [interval]
+        }
     }
 
     // MediaPlayer doesn't promise which queue it calls handlers on, so each one copies what it needs
     // out of the event and hops to the main actor, where the player models live.
     private func registerCommands() {
-        let interval = PlayerModel.skipInterval.seconds
-        commands.skipForwardCommand.preferredIntervals = [NSNumber(value: interval)]
-        commands.skipBackwardCommand.preferredIntervals = [NSNumber(value: interval)]
         commands.changePlaybackRateCommand.supportedPlaybackRates = Self.supportedRates.map { NSNumber(value: $0) }
 
         addTarget(commands.playCommand) { $0.play() }
         addTarget(commands.pauseCommand) { $0.pause() }
         addTarget(commands.togglePlayPauseCommand) { $0.togglePlayback() }
-        addTarget(commands.skipForwardCommand) { $0.skip(by: PlayerModel.skipInterval) }
-        addTarget(commands.skipBackwardCommand) { $0.skip(by: .zero - PlayerModel.skipInterval) }
+        addTarget(commands.skipForwardCommand) { $0.skip(by: $0.skipInterval) }
+        addTarget(commands.skipBackwardCommand) { $0.skip(by: .zero - $0.skipInterval) }
         commands.changePlaybackPositionCommand.addTarget { @Sendable [weak self] event in
             guard let event = event as? MPChangePlaybackPositionCommandEvent else { return .commandFailed }
             let position = Duration.seconds(event.positionTime)
