@@ -21,18 +21,36 @@ Pane plays everything through [VLCKit](https://code.videolan.org/videolan/VLCKit
 
 ### iPhone
 
-| Library, light | Library, dark | Player |
-| --- | --- | --- |
-| ![Library in light appearance on iPhone](docs/screenshots/iphone-library-light.png) | ![Library in dark appearance on iPhone](docs/screenshots/iphone-library-dark.png) | ![Player on iPhone](docs/screenshots/iphone-player.png) |
+Library, light
 
-| Network, light | Network, dark |
-| --- | --- |
-| ![Network in light appearance on iPhone](docs/screenshots/iphone-network-light.png) | ![Network in dark appearance on iPhone](docs/screenshots/iphone-network-dark.png) |
+![Library in light appearance on iPhone](docs/screenshots/iphone-library-light.png)
+
+Library, dark
+
+![Library in dark appearance on iPhone](docs/screenshots/iphone-library-dark.png)
+
+Player
+
+![Player on iPhone](docs/screenshots/iphone-player.png)
+
+Network, light
+
+![Network in light appearance on iPhone](docs/screenshots/iphone-network-light.png)
+
+Network, dark
+
+![Network in dark appearance on iPhone](docs/screenshots/iphone-network-dark.png)
 
 ### iPad
 
-| Library, light | Library, dark |
-| --- | --- |
-| ![Library in light appearance on iPad](docs/screenshots/ipad-library-light.png) | ![Library in dark appearance on iPad](docs/screenshots/ipad-library-dark.png) |
+Library, light
+
+![Library in light appearance on iPad](docs/screenshots/ipad-library-light.png)
+
+Library, dark
+
+![Library in dark appearance on iPad](docs/screenshots/ipad-library-dark.png)
+
+Player
 
 ![Player on iPad](docs/screenshots/ipad-player.png)
