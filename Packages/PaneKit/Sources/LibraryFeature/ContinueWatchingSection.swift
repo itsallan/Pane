@@ -7,6 +7,8 @@ struct ContinueWatchingSection: View {
     let onOpen: (MediaItem) -> Void
 
     var body: some View {
+        // Read here rather than inside the layout closure, which Observation doesn't track.
+        let isSingle = model.continueWatching.count == 1
         VStack(alignment: .leading, spacing: Metrics.sectionHeaderSpacing) {
             SectionHeader("Continue Watching")
             ScrollView(.horizontal) {
@@ -14,7 +16,7 @@ struct ContinueWatchingSection: View {
                     ForEach(model.continueWatching) { entry in
                         ContinueWatchingCard(entry: entry, model: model, onOpen: onOpen)
                             .containerRelativeFrame(.horizontal) { length, _ in
-                                cardWidth(in: length)
+                                cardWidth(in: length, isSingle: isSingle)
                             }
                     }
                 }
@@ -27,8 +29,9 @@ struct ContinueWatchingSection: View {
     }
 
     // The next card peeks in to show the row scrolls; a lone card has nothing to hint at, so it takes the width.
-    private func cardWidth(in length: CGFloat) -> CGFloat {
-        let fraction = model.continueWatching.count > 1 ? Metrics.heroWidthFraction : 1
-        return min(length * fraction, Metrics.heroMaximumWidth)
+    private func cardWidth(in length: CGFloat, isSingle: Bool) -> CGFloat {
+        // The length already excludes the scroll view's content margins.
+        let width = isSingle ? length : length * Metrics.heroWidthFraction
+        return min(width, Metrics.heroMaximumWidth)
     }
 }
