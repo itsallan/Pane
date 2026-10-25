@@ -2,11 +2,18 @@ import Domain
 
 public actor InMemoryPreferencesRepository: PreferencesRepository {
     private var preferences: TrackPreferences
+    private var playback: PlaybackPreferences
     private var style: SubtitleStyle
     private var isCloudSyncOn: Bool
 
-    public init(preferences: TrackPreferences = TrackPreferences(), style: SubtitleStyle = SubtitleStyle(), syncsWithCloud: Bool = false) {
+    public init(
+        preferences: TrackPreferences = TrackPreferences(),
+        playback: PlaybackPreferences = PlaybackPreferences(),
+        style: SubtitleStyle = SubtitleStyle(),
+        syncsWithCloud: Bool = false
+    ) {
         self.preferences = preferences
+        self.playback = playback
         self.style = style
         isCloudSyncOn = syncsWithCloud
     }
@@ -17,6 +24,14 @@ public actor InMemoryPreferencesRepository: PreferencesRepository {
 
     public func save(_ preferences: TrackPreferences) async throws {
         self.preferences = preferences
+    }
+
+    public func playbackPreferences() async throws -> PlaybackPreferences {
+        playback
+    }
+
+    public func save(_ preferences: PlaybackPreferences) async throws {
+        playback = preferences
     }
 
     public func subtitleStyle() async throws -> SubtitleStyle {

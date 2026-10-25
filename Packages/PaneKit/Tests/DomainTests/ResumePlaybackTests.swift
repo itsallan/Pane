@@ -71,4 +71,15 @@ struct ResumePlaybackTests {
         }
         #expect(engine.calls == [.load(item.source)])
     }
+
+    @Test(arguments: [ResumeBehavior.ask, .never])
+    func onlyAlwaysSeeks(behavior: ResumeBehavior) async throws {
+        let engine = FakePlaybackEngine()
+        let progress = InMemoryProgressRepository(progress: [item.id: PlaybackProgress(position: .seconds(120), duration: .seconds(600))])
+        let resume = ResumePlayback(engine: engine, progress: progress)
+        let position = try await resume(item, behavior: behavior)
+        #expect(position == nil)
+        #expect(engine.calls == [.load(item.source)])
+        #expect(await resume.savedPosition(for: item) == .seconds(120))
+    }
 }

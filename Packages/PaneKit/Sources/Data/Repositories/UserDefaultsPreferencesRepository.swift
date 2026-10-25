@@ -1,10 +1,11 @@
 import Domain
 import Foundation
 
-/// Until Settings exists, nothing saves preferences, so the system's preferred languages decide.
+/// Until someone picks languages in Settings, the system's preferred languages decide.
 public struct UserDefaultsPreferencesRepository: PreferencesRepository {
     private static let key = "trackPreferences"
     private static let styleKey = "subtitleStyle"
+    private static let playbackKey = "playbackPreferences"
     private static let cloudSyncKey = "syncsWithCloud"
 
     // UserDefaults isn't Sendable, so keep the suite name and look the store up per call.
@@ -30,6 +31,17 @@ public struct UserDefaultsPreferencesRepository: PreferencesRepository {
 
     public func save(_ preferences: TrackPreferences) async throws {
         defaults.set(try JSONEncoder().encode(StoredPreferences(preferences)), forKey: Self.key)
+    }
+
+    public func playbackPreferences() async throws -> PlaybackPreferences {
+        guard let data = defaults.data(forKey: Self.playbackKey),
+              let stored = try? JSONDecoder().decode(StoredPlaybackPreferences.self, from: data)
+        else { return PlaybackPreferences() }
+        return stored.playbackPreferences
+    }
+
+    public func save(_ preferences: PlaybackPreferences) async throws {
+        defaults.set(try JSONEncoder().encode(StoredPlaybackPreferences(preferences)), forKey: Self.playbackKey)
     }
 
     public func subtitleStyle() async throws -> SubtitleStyle {
@@ -81,6 +93,45 @@ private struct StoredPreferences: Codable {
             audioLanguages: audioLanguages.map(Locale.Language.init(identifier:)),
             subtitleLanguages: subtitleLanguages.map(Locale.Language.init(identifier:)),
             subtitleMode: mode
+        )
+    }
+}
+
+// Every field is optional so a value saved by another version keeps what it can and defaults the rest.
+private struct StoredPlaybackPreferences: Codable {
+    var defaultRate: Double?
+    var skipSeconds: Int64?
+    var resume: String?
+    var usesHardwareDecoding: Bool?
+    var allowsVolumeBoost: Bool?
+    var swipesAdjustLevels: Bool?
+    var doubleTapSeeks: Bool?
+    var longPressSpeedsUp: Bool?
+
+    init(_ preferences: PlaybackPreferences) {
+        defaultRate = preferences.defaultRate
+        skipSeconds = preferences.skipInterval.components.seconds
+        resume = preferences.resume.rawValue
+        usesHardwareDecoding = preferences.usesHardwareDecoding
+        allowsVolumeBoost = preferences.allowsVolumeBoost
+        swipesAdjustLevels = preferences.gestures.adjustsBrightnessAndVolume
+        doubleTapSeeks = preferences.gestures.doubleTapSeeks
+        longPressSpeedsUp = preferences.gestures.longPressSpeedsUp
+    }
+
+    var playbackPreferences: PlaybackPreferences {
+        let defaults = PlaybackPreferences()
+        return PlaybackPreferences(
+            defaultRate: defaultRate ?? defaults.defaultRate,
+            skipInterval: skipSeconds.map { .seconds($0) } ?? defaults.skipInterval,
+            resume: resume.flatMap(ResumeBehavior.init(rawValue:)) ?? defaults.resume,
+            usesHardwareDecoding: usesHardwareDecoding ?? defaults.usesHardwareDecoding,
+            allowsVolumeBoost: allowsVolumeBoost ?? defaults.allowsVolumeBoost,
+            gestures: GesturePreferences(
+                adjustsBrightnessAndVolume: swipesAdjustLevels ?? defaults.gestures.adjustsBrightnessAndVolume,
+                doubleTapSeeks: doubleTapSeeks ?? defaults.gestures.doubleTapSeeks,
+                longPressSpeedsUp: longPressSpeedsUp ?? defaults.gestures.longPressSpeedsUp
+            )
         )
     }
 }
