@@ -33,6 +33,9 @@ struct QuickActionRail: View {
                     .accessibilityLabel("Playback Speed")
                     .accessibilityValue(model.rate.rateLabel)
                     .accessibilityHint("Shows playback speeds.")
+                    if model.canRotate {
+                        TransportButton("Rotate Screen", systemImage: "rotate.right", action: model.rotate)
+                    }
                     if model.canUsePictureInPicture {
                         TransportButton(
                             model.isPictureInPictureActive ? "Stop Picture in Picture" : "Start Picture in Picture",

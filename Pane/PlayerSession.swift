@@ -1,6 +1,9 @@
 import Domain
 import Playback
 import PlayerFeature
+#if os(iOS)
+import UIKit
+#endif
 
 /// One open player: the engine, its drawable and the model. Built in an action, never in `body`,
 /// so a redraw can't spawn a second engine.
@@ -24,8 +27,11 @@ final class PlayerSession: Identifiable {
         self.drawable = drawable
         #if os(iOS)
         let brightness: (any ScreenBrightness)? = SceneScreenBrightness()
+        // An iPad shares its screen with other apps in multitasking, so it can't force an orientation.
+        let orientation: (any ScreenOrientation)? = UIDevice.current.userInterfaceIdiom == .phone ? SceneOrientation() : nil
         #else
         let brightness: (any ScreenBrightness)? = nil
+        let orientation: (any ScreenOrientation)? = nil
         #endif
         model = PlayerModel(
             engine: engine,
@@ -36,6 +42,7 @@ final class PlayerSession: Identifiable {
             preferences: dependencies.preferences,
             thumbnails: dependencies.thumbnails,
             screenBrightness: brightness,
+            screenOrientation: orientation,
             photoLibrary: SystemPhotoLibrary()
         )
         if case .networkShare(let serverID, _) = item.source {

@@ -9,4 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         openedFiles.add(urls.filter(\.isFileURL))
     }
 }
+#else
+import UIKit
+
+final class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        SceneOrientation.supported
+    }
+}
 #endif

@@ -69,6 +69,7 @@ public final class PlayerModel {
     private let preferences: (any PreferencesRepository)?
     private let thumbnails: (any ThumbnailProvider)?
     private let screenBrightness: (any ScreenBrightness)?
+    private let screenOrientation: (any ScreenOrientation)?
     private let originalBrightness: Double?
     let elapsed: @Sendable () -> Duration
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -102,6 +103,7 @@ public final class PlayerModel {
         title: String? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
+        screenOrientation: (any ScreenOrientation)? = nil,
         photoLibrary: (any PhotoLibrary)? = nil,
         clock: C = ContinuousClock()
     ) {
@@ -115,6 +117,7 @@ public final class PlayerModel {
             preferences: nil,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
+            screenOrientation: screenOrientation,
             photoLibrary: photoLibrary,
             clock: clock
         )
@@ -131,6 +134,7 @@ public final class PlayerModel {
         preferences: (any PreferencesRepository)? = nil,
         thumbnails: (any ThumbnailProvider)? = nil,
         screenBrightness: (any ScreenBrightness)? = nil,
+        screenOrientation: (any ScreenOrientation)? = nil,
         photoLibrary: (any PhotoLibrary)? = nil,
         clock: C = ContinuousClock()
     ) {
@@ -144,6 +148,7 @@ public final class PlayerModel {
             preferences: preferences,
             thumbnails: thumbnails,
             screenBrightness: screenBrightness,
+            screenOrientation: screenOrientation,
             photoLibrary: photoLibrary,
             clock: clock
         )
@@ -159,6 +164,7 @@ public final class PlayerModel {
         preferences: (any PreferencesRepository)?,
         thumbnails: (any ThumbnailProvider)?,
         screenBrightness: (any ScreenBrightness)?,
+        screenOrientation: (any ScreenOrientation)?,
         photoLibrary: (any PhotoLibrary)?,
         clock: C
     ) {
@@ -173,6 +179,7 @@ public final class PlayerModel {
         self.preferences = preferences
         self.thumbnails = thumbnails
         self.screenBrightness = screenBrightness
+        self.screenOrientation = screenOrientation
         let origin = clock.now
         elapsed = { origin.duration(to: clock.now) }
         sleep = { try await clock.sleep(for: $0) }
@@ -224,6 +231,13 @@ public final class PlayerModel {
 
     public var canUsePictureInPicture: Bool { isPictureInPictureSupported && hasVideo }
 
+    public var canRotate: Bool { screenOrientation != nil }
+
+    public func rotate() {
+        revealControls()
+        screenOrientation?.rotate()
+    }
+
     public func togglePictureInPicture() {
         guard canUsePictureInPicture else { return }
         let isActive = !isPictureInPictureActive
@@ -254,6 +268,7 @@ public final class PlayerModel {
         isClosed = true
         sleepTimer.setting = nil
         restoreBrightness()
+        screenOrientation?.unlock()
         await progressWrite?.value
         await engine.close()
     }
