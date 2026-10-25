@@ -10,12 +10,16 @@ struct LanguagePickerScreen: View {
     var body: some View {
         List(matches, id: \.minimalIdentifier) { language in
             Button(language.displayName) {
-                onPick(language)
-                dismiss()
+                pick(language)
             }
         }
         .searchable(text: $query)
         .navigationTitle("Add Language")
+    }
+
+    private func pick(_ language: Locale.Language) {
+        onPick(language)
+        dismiss()
     }
 
     private var matches: [Locale.Language] {

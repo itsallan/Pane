@@ -9,7 +9,7 @@ struct AudioSettingsSection: View {
             NavigationLink {
                 LanguageListScreen(title: "Audio Languages", languages: $model.tracks.audioLanguages)
             } label: {
-                LabeledContent("Preferred Languages", value: summary(of: model.tracks.audioLanguages))
+                LabeledContent("Preferred Languages", value: model.tracks.audioLanguages.summary)
             }
             Toggle("Volume Boost", isOn: $model.playback.allowsVolumeBoost)
         } header: {

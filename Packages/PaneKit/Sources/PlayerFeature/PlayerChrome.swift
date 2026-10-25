@@ -8,44 +8,43 @@ struct PlayerChrome: View {
     let model: PlayerModel
     let onDismiss: (() -> Void)?
 
+    @State private var isWide = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     #if os(iOS)
     @Environment(\.verticalSizeClass) private var verticalSizeClass
     #endif
 
     var body: some View {
-        GeometryReader { proxy in
-            let isWide = proxy.size.width > proxy.size.height
-            ZStack {
-                if showsTransport {
-                    CenterTransport(model: model)
-                        .transition(clusterTransition)
-                }
-                VStack(spacing: Metrics.controlSpacing) {
-                    top
-                    Spacer(minLength: 0)
-                    if isWide {
-                        bottom
-                    } else {
-                        // Portrait has room under the picture, so the rail sits just above the timeline instead of over the video.
-                        HStack {
-                            Spacer(minLength: 0)
-                            rail
-                        }
-                        bottom
-                    }
-                }
+        ZStack {
+            if showsTransport {
+                CenterTransport(model: model)
+                    .transition(clusterTransition)
+            }
+            VStack(spacing: Metrics.controlSpacing) {
+                top
+                Spacer(minLength: 0)
                 if isWide {
+                    bottom
+                } else {
+                    // Portrait has room under the picture, so the rail sits just above the timeline instead of over the video.
                     HStack {
                         Spacer(minLength: 0)
                         rail
                     }
+                    bottom
                 }
             }
-            .padding(.horizontal, edgeInset)
-            .padding(.top, isCompactHeight ? Metrics.compactEdgeInset : Metrics.controlSpacing)
-            .padding(.bottom, isCompactHeight ? 0 : Metrics.controlSpacing)
+            if isWide {
+                HStack {
+                    Spacer(minLength: 0)
+                    rail
+                }
+            }
         }
+        .padding(.horizontal, edgeInset)
+        .padding(.top, isCompactHeight ? Metrics.compactEdgeInset : Metrics.controlSpacing)
+        .padding(.bottom, isCompactHeight ? 0 : Metrics.controlSpacing)
+        .onGeometryChange(for: Bool.self) { $0.size.width > $0.size.height } action: { isWide = $0 }
     }
 
     private var isCompactHeight: Bool {

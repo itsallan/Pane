@@ -26,3 +26,12 @@ extension Locale.Language {
         Locale.current.localizedString(forIdentifier: minimalIdentifier) ?? minimalIdentifier
     }
 }
+
+extension [Locale.Language] {
+    /// "English", "English +2" or "None", for a settings row.
+    var summary: String {
+        guard let first else { return String(localized: "None") }
+        guard count > 1 else { return first.displayName }
+        return String(localized: "\(first.displayName) +\(count - 1)")
+    }
+}

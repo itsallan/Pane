@@ -9,19 +9,43 @@ struct CenterTransport: View {
     @State private var isSpread = false
     @Namespace private var glass
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ScaledMetric(relativeTo: .largeTitle) private var playSize = Metrics.centerPlaySize
 
     var body: some View {
         GlassEffectContainer(spacing: Metrics.glassMergeSpacing) {
             // Folded, the skip buttons sit behind play, so the glass reads as one drop that then splits in three.
             HStack(spacing: isSpread ? Metrics.centerSpacing : -Metrics.centerSkipSize) {
-                skip(forward: false)
-                playPause
+                TransportButton(
+                    "Skip Back \(skipSeconds) Seconds",
+                    systemImage: "gobackward.\(skipSeconds)",
+                    diameter: Metrics.centerSkipSize,
+                    symbolFont: .centerSkipSymbol,
+                    action: skipBack
+                )
+                .glassEffect(.regular.interactive(), in: .circle)
+                .glassEffectID("back", in: glass)
+                .disabled(!model.isSeekable)
+                .opacity(isSpread ? 1 : 0)
+                CenterPlayButton(model: model)
+                    .glassEffectID("play", in: glass)
                     .zIndex(1)
-                skip(forward: true)
+                TransportButton(
+                    "Skip Forward \(skipSeconds) Seconds",
+                    systemImage: "goforward.\(skipSeconds)",
+                    diameter: Metrics.centerSkipSize,
+                    symbolFont: .centerSkipSymbol,
+                    action: skipForward
+                )
+                .glassEffect(.regular.interactive(), in: .circle)
+                .glassEffectID("forward", in: glass)
+                .disabled(!model.isSeekable)
+                .opacity(isSpread ? 1 : 0)
             }
         }
         .onAppear(perform: spread)
+    }
+
+    private var skipSeconds: Int {
+        Int(model.skipInterval.components.seconds)
     }
 
     private func spread() {
@@ -34,50 +58,11 @@ struct CenterTransport: View {
         }
     }
 
-    private var playPause: some View {
-        Button(action: model.togglePlayback) {
-            Group {
-                if model.isBuffering && !model.isScrubbing {
-                    ProgressView()
-                        .controlSize(.large)
-                } else {
-                    Image(systemName: playPauseSymbol)
-                        .font(.centerPlaySymbol)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-            }
-            .frame(width: playSize, height: playSize)
-            .contentShape(.circle)
-        }
-        .buttonStyle(.transport)
-        .glassEffect(.regular.tint(model.ambient.palette?.accent).interactive(), in: .circle)
-        .glassEffectID("play", in: glass)
-        .accessibilityLabel(playPauseTitle)
+    private func skipBack() {
+        model.skip(by: .zero - model.skipInterval)
     }
 
-    private func skip(forward: Bool) -> some View {
-        let seconds = Int(model.skipInterval.components.seconds)
-        return TransportButton(
-            forward ? "Skip Forward \(seconds) Seconds" : "Skip Back \(seconds) Seconds",
-            systemImage: forward ? "goforward.\(seconds)" : "gobackward.\(seconds)",
-            diameter: Metrics.centerSkipSize,
-            symbolFont: .centerSkipSymbol
-        ) {
-            model.skip(by: forward ? model.skipInterval : .zero - model.skipInterval)
-        }
-        .glassEffect(.regular.interactive(), in: .circle)
-        .glassEffectID(forward ? "forward" : "back", in: glass)
-        .disabled(!model.isSeekable)
-        .opacity(isSpread ? 1 : 0)
-    }
-
-    private var playPauseTitle: LocalizedStringKey {
-        if model.isPlaybackActive { return "Pause" }
-        return model.status == .ended ? "Play Again" : "Play"
-    }
-
-    private var playPauseSymbol: String {
-        if model.isPlaybackActive { return "pause.fill" }
-        return model.status == .ended ? "arrow.counterclockwise" : "play.fill"
+    private func skipForward() {
+        model.skip(by: model.skipInterval)
     }
 }

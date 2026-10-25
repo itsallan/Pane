@@ -22,8 +22,10 @@ public struct PlayerScreen<Surface: View>: View {
         ZStack {
             AmbientBackdrop(palette: model.ambient.palette)
                 .ignoresSafeArea()
-            VideoFrame(aspectRatio: videoAspectRatio) { surface }
-                .ignoresSafeArea()
+            VideoFrame(aspectRatio: videoAspectRatio) {
+                surface
+            }
+            .ignoresSafeArea()
                 .accessibilityHidden(true)
             interactionLayer
                 .ignoresSafeArea()
@@ -104,22 +106,6 @@ public struct PlayerScreen<Surface: View>: View {
         case .background: model.sceneDidEnterBackground()
         #endif
         @unknown default: break
-        }
-    }
-}
-
-/// Centers the surface at the video's aspect ratio, or lets it fill the space when there isn't one.
-private struct VideoFrame<Content: View>: View {
-    let aspectRatio: CGFloat?
-    @ViewBuilder let content: Content
-
-    var body: some View {
-        if let aspectRatio {
-            content
-                .aspectRatio(aspectRatio, contentMode: .fit)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            content
         }
     }
 }

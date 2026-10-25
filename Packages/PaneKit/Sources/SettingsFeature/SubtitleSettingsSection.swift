@@ -23,7 +23,7 @@ struct SubtitleSettingsSection: View {
             NavigationLink {
                 LanguageListScreen(title: "Subtitle Languages", languages: $model.tracks.subtitleLanguages)
             } label: {
-                LabeledContent("Preferred Languages", value: summary(of: model.tracks.subtitleLanguages))
+                LabeledContent("Preferred Languages", value: model.tracks.subtitleLanguages.summary)
             }
         } header: {
             Text("Subtitles")
@@ -31,30 +31,4 @@ struct SubtitleSettingsSection: View {
             Text("Style applies from the next video you open, because VLC reads it when a player starts. Forced subtitles for foreign dialogue still show when subtitles are off.")
         }
     }
-}
-
-/// A frame-shaped stand-in for a video, with the sample line drawn the way libvlc will draw it.
-private struct SubtitleStyleSample: View {
-    let style: SubtitleStyle
-
-    var body: some View {
-        LinearGradient(colors: [.indigo, .teal, .orange], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .aspectRatio(16 / 9, contentMode: .fit)
-            .overlay { SubtitleStylePreview(style: style) }
-            .clipShape(.rect(cornerRadius: Metrics.posterCornerRadius))
-            .listRowInsets(EdgeInsets(
-                top: Metrics.controlSpacing,
-                leading: Metrics.controlSpacing,
-                bottom: Metrics.controlSpacing,
-                trailing: Metrics.controlSpacing
-            ))
-            .accessibilityHidden(true)
-            .animation(.quickFade, value: style)
-    }
-}
-
-func summary(of languages: [Locale.Language]) -> String {
-    guard let first = languages.first else { return String(localized: "None") }
-    guard languages.count > 1 else { return first.displayName }
-    return String(localized: "\(first.displayName) +\(languages.count - 1)")
 }
