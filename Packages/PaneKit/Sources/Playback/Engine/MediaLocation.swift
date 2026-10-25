@@ -40,9 +40,9 @@ struct MediaLocation: Sendable {
         url.stopAccessingSecurityScopedResource()
     }
 
-    func makeMedia() -> VLCMedia? {
+    func makeMedia(usesHardwareDecoding: Bool = true) -> VLCMedia? {
         guard let media = VLCMedia(url: url) else { return nil }
-        media.addOptions(MediaOptions.options(isRemote: isRemote))
+        media.addOptions(MediaOptions.options(isRemote: isRemote, usesHardwareDecoding: usesHardwareDecoding))
         media.addOptions(shareOptions)
         // scaletempo keeps the pitch at any rate. It's libvlc's default; the speed control depends on it, so say so.
         media.addOption(":audio-time-stretch")
@@ -51,11 +51,15 @@ struct MediaLocation: Sendable {
 }
 
 enum MediaOptions {
-    static func options(isRemote: Bool) -> [String: String] {
-        var options = [
+    static func options(isRemote: Bool, usesHardwareDecoding: Bool = true) -> [String: String] {
+        var options: [String: String]
+        if usesHardwareDecoding {
             // VideoToolbox first; avcodec catches what the hardware decoder refuses (old codecs, odd profiles).
-            "codec": "videotoolbox,avcodec,all",
-        ]
+            options = ["codec": "videotoolbox,avcodec,all"]
+        } else {
+            // avcodec would still hand video to VideoToolbox through its own hwaccel unless that's off too.
+            options = ["codec": "avcodec,all", "avcodec-hw": "none"]
+        }
         if isRemote {
             options["network-caching"] = "1500"
         }

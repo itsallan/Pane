@@ -1,3 +1,4 @@
+import CoreGraphics
 import Domain
 import Foundation
 import PlaybackTesting
@@ -62,6 +63,9 @@ struct MediaLocationTests {
         #expect(MediaOptions.options(isRemote: true)["network-caching"] != nil)
         #expect(MediaOptions.options(isRemote: false)["network-caching"] == nil)
         #expect(MediaOptions.options(isRemote: false)["codec"]?.hasPrefix("videotoolbox") == true)
+        let software = MediaOptions.options(isRemote: false, usesHardwareDecoding: false)
+        #expect(software["codec"]?.contains("videotoolbox") == false)
+        #expect(software["avcodec-hw"] == "none")
     }
 }
 
@@ -131,5 +135,34 @@ struct VLCThumbnailProviderTests {
             try await forgotten.thumbnail(for: source, at: .seconds(12), maxPixelSize: 160)
         }
         #expect(!FileManager.default.fileExists(atPath: directory.path(percentEncoded: false)))
+    }
+}
+
+struct AmbientSamplerTests {
+    @Test func averagesEachCell() throws {
+        // Left third red, the rest blue, so the leading column is red and the others blue on every row.
+        let width = 30, height = 9
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                if x < 10 { pixels[offset] = 255 } else { pixels[offset + 2] = 255 }
+                pixels[offset + 3] = 255
+            }
+        }
+        let provider = try #require(CGDataProvider(data: Data(pixels) as CFData))
+        let image = try #require(CGImage(
+            width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue),
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent
+        ))
+        let palette = try #require(AmbientSampler.palette(from: image))
+        #expect(palette.swatches.count == AmbientPalette.columns * AmbientPalette.rows)
+        for row in 0..<AmbientPalette.rows {
+            let leading = palette.swatches[row * AmbientPalette.columns]
+            let trailing = palette.swatches[row * AmbientPalette.columns + 2]
+            #expect(leading.red > 0.99 && leading.blue < 0.01)
+            #expect(trailing.blue > 0.99 && trailing.red < 0.01)
+        }
     }
 }

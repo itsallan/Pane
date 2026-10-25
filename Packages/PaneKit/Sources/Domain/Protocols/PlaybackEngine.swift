@@ -29,5 +29,9 @@ public protocol PlaybackEngine: Sendable {
     func setPictureInPicture(_ isActive: Bool) async
     /// Returns a file URL in Caches.
     func captureFrame() async throws(PlaybackError) -> URL
+    /// A tiny sample of the frame on screen, cheap enough to take about once a second.
+    func sampleAmbientPalette() async throws(PlaybackError) -> AmbientPalette
+    /// Applies from the next `load`.
+    func setHardwareDecoding(_ isEnabled: Bool) async
     func close() async
 }

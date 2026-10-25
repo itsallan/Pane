@@ -24,6 +24,7 @@ public final class FakePlaybackEngine: PlaybackEngine {
         case setSubtitleStyle(SubtitleStyle)
         case setPictureInPicture(Bool)
         case captureFrame
+        case setHardwareDecoding(Bool)
         case close
     }
 
@@ -44,6 +45,7 @@ public final class FakePlaybackEngine: PlaybackEngine {
         var calls: [Call] = []
         var failures: Failures
         var stateOnLoad: PlaybackState?
+        var ambientPalette: AmbientPalette?
         var subscribers: [UUID: AsyncStream<PlaybackState>.Continuation] = [:]
     }
 
@@ -67,6 +69,11 @@ public final class FakePlaybackEngine: PlaybackEngine {
 
     public var calls: [Call] { storage.withLock { $0.calls } }
     public var state: PlaybackState { storage.withLock { $0.state } }
+
+    /// What `sampleAmbientPalette()` returns; `nil` makes it fail the way it does without a video output.
+    public func setAmbientPalette(_ palette: AmbientPalette?) {
+        storage.withLock { $0.ambientPalette = palette }
+    }
 
     public func setFailures(_ failures: Failures) {
         storage.withLock { $0.failures = failures }
@@ -227,6 +234,15 @@ public final class FakePlaybackEngine: PlaybackEngine {
             throw failure
         }
         return capturedFrameURL
+    }
+
+    public func sampleAmbientPalette() async throws(PlaybackError) -> AmbientPalette {
+        guard let palette = storage.withLock({ $0.ambientPalette }) else { throw .captureFailed }
+        return palette
+    }
+
+    public func setHardwareDecoding(_ isEnabled: Bool) async {
+        storage.withLock { $0.calls.append(.setHardwareDecoding(isEnabled)) }
     }
 
     public func close() async {

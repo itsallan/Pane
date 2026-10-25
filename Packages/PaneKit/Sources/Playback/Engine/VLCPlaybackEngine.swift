@@ -1,6 +1,7 @@
 import CoreGraphics
 import Domain
 import Foundation
+import ImageIO
 @preconcurrency import VLCKit
 
 public actor VLCPlaybackEngine: PlaybackEngine {
@@ -19,6 +20,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private let broadcast = StateBroadcast()
     private let capabilitiesObserver: any NSObjectProtocol
     private let captureDirectory: URL
+    private let ambientDirectory: URL
     private let servers: (any NetworkServerRepository)?
     private let credentials: (any CredentialStore)?
     private let responder: LoginResponder
@@ -45,6 +47,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     private var pendingSlave: (title: String, existingIDs: Set<MediaTrack.ID>)?
     private var slaveTitles: [MediaTrack.ID: String] = [:]
     private var isClosed = false
+    private var usesHardwareDecoding = true
     private var share: (server: NetworkServer.ID, login: UUID)?
 
     init(
@@ -53,7 +56,12 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         servers: (any NetworkServerRepository)? = nil,
         credentials: (any CredentialStore)? = nil
     ) {
-        let options = subtitleStyle.libraryOptions
+        var options = subtitleStyle.libraryOptions
+        #if os(macOS)
+        // VLCKit only turns the snapshot preview off on iOS. Without this, every ambient sample flashes a thumbnail
+        // in the corner of the video. It costs the Mac a private instance per player, which it can afford.
+        options.append("--no-snapshot-preview")
+        #endif
         // initWithOptions creates a private libvlc instance, which costs memory; only pay for it when the style needs one.
         player = options.isEmpty ? VLCMediaPlayer() : VLCMediaPlayer(options: options)
         // Login dialogs are per libvlc instance, so a private instance needs its own responder.
@@ -69,6 +77,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
             player.drawable = drawable
         }
         captureDirectory = URL.cachesDirectory.appending(path: "Snapshots", directoryHint: .isDirectory)
+        ambientDirectory = URL.temporaryDirectory.appending(path: "Ambient", directoryHint: .isDirectory)
         #if os(iOS)
         let pictureInPictureBridge = bridge
         pictureInPictureWindow = PictureInPictureWindow { pictureInPictureBridge.yield(.pictureInPicture($0)) }
@@ -118,7 +127,7 @@ public actor VLCPlaybackEngine: PlaybackEngine {
         let resolved = try await ResolvedShare(source, servers: servers, credentials: credentials)
         guard !isClosed else { return }
         let location = try MediaLocation(source, share: resolved?.address)
-        guard let media = location.makeMedia() else {
+        guard let media = location.makeMedia(usesHardwareDecoding: usesHardwareDecoding) else {
             location.relinquish()
             throw .playbackFailure(isRemote: location.isRemote)
         }
@@ -314,19 +323,35 @@ public actor VLCPlaybackEngine: PlaybackEngine {
     }
 
     public func captureFrame() async throws(PlaybackError) -> URL {
+        // libvlc writes its default snapshot format, PNG, whatever the extension says.
+        try await snapshot(into: captureDirectory, width: 0, height: 0)
+    }
+
+    public func sampleAmbientPalette() async throws(PlaybackError) -> AmbientPalette {
+        // The vout scales before it encodes, so a 32 px PNG costs far less than a full frame. Height 0 keeps the aspect.
+        let url = try await snapshot(into: ambientDirectory, width: Int32(AmbientSampler.sampleWidth), height: 0)
+        defer { try? FileManager.default.removeItem(at: url) }
+        guard let palette = AmbientSampler.palette(fromImageAt: url) else { throw .captureFailed }
+        return palette
+    }
+
+    public func setHardwareDecoding(_ isEnabled: Bool) {
+        usesHardwareDecoding = isEnabled
+    }
+
+    private func snapshot(into directory: URL, width: Int32, height: Int32) async throws(PlaybackError) -> URL {
         // saveVideoSnapshot raises an Objective-C exception without a video output, which Swift can't catch.
         guard player.hasVideoOut, !isClosed else { throw .captureFailed }
         do {
-            try FileManager.default.createDirectory(at: captureDirectory, withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         } catch {
             throw .captureFailed
         }
-        // libvlc writes its default snapshot format, PNG, whatever the extension says.
-        let url = captureDirectory.appending(path: "\(UUID().uuidString).png")
+        let url = directory.appending(path: "\(UUID().uuidString).png")
         let id = UUID()
         let result = await withCheckedContinuation { continuation in
             pendingCaptures.append(PendingCapture(id: id, url: url, continuation: continuation))
-            player.saveVideoSnapshot(at: url.path(percentEncoded: false), withWidth: 0, andHeight: 0)
+            player.saveVideoSnapshot(at: url.path(percentEncoded: false), withWidth: width, andHeight: height)
             Task {
                 try? await Task.sleep(for: .seconds(5))
                 self.failCapture(id)
