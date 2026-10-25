@@ -17,6 +17,15 @@ public final class VideoDrawable: UIView {
     required init?(coder: NSCoder) {
         fatalError("init(coder:) is unavailable")
     }
+
+    // libvlc sizes its video view from bounds it reads on the vout thread, which are stale once the player
+    // screen resizes the drawable to the picture's aspect ratio; autoresizing then keeps the wrong size forever.
+    override public func layoutSubviews() {
+        super.layoutSubviews()
+        for subview in subviews where subview.frame != bounds {
+            subview.frame = bounds
+        }
+    }
 }
 #else
 import AppKit
@@ -37,6 +46,20 @@ public final class VideoDrawable: NSView {
 
     override public func hitTest(_ point: NSPoint) -> NSView? {
         nil
+    }
+
+    // libvlc sizes its video view from bounds it reads on the vout thread, which are stale once the player
+    // screen resizes the drawable to the picture's aspect ratio; autoresizing then keeps the wrong size forever.
+    override public func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        needsLayout = true
+    }
+
+    override public func layout() {
+        super.layout()
+        for subview in subviews where subview.frame != bounds {
+            subview.frame = bounds
+        }
     }
 }
 #endif
